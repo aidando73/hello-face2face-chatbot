@@ -21,6 +21,12 @@ def load_qwen_model():
 if __name__ == "__main__":
     model, tokenizer = load_qwen_model()
     print("Model and tokenizer loaded successfully!")
+
+    # Print the type of model and tokenizer
+    print(f"Model type: {type(model)}")
+    print(f"Tokenizer type: {type(tokenizer)}")
+    print(isinstance(model, torch.nn.Module))  # Will print True
+    print(isinstance(tokenizer, torch.nn.Module))  # Will print False
     
     # Example usage
     prompt = "Hello, how are you?"
@@ -35,4 +41,11 @@ if __name__ == "__main__":
     )
     
     response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    print(f"Response: {response}") 
+    print(f"Response: {response}")
+
+    # Get all weights as a PyTorch state dict
+    state_dict = model.state_dict()
+
+    # Each key in the state dict is a PyTorch tensor
+    for name, param in state_dict.items():
+        print(f"Layer: {name}, Shape: {param.shape}") 
