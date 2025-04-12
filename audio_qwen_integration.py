@@ -45,7 +45,7 @@ class AudioQwenModel:
         
         # Combine audio and text embeddings
         combined_embeddings = torch.cat([
-            # audio_embeddings,  # Shape: (1, seq_len/16, hidden_size)
+            audio_embeddings,  # Shape: (1, seq_len/16, hidden_size)
             text_embeddings  # Shape: (1, text_len, hidden_size)
         ], dim=1)
         
