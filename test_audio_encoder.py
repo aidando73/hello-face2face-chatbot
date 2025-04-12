@@ -7,6 +7,7 @@ def test_audio_encoder():
     input_dim = 80  # typical mel-spectrogram dimension
     seq_len = 1600  # arbitrary sequence length
     hidden_dim = 512
+    text_embed_dim = 4096  # typical language model embedding dimension
     
     # Create random input tensor
     dummy_input = torch.randn(batch_size, input_dim, seq_len)
@@ -22,7 +23,8 @@ def test_audio_encoder():
         input_dim=input_dim,
         hidden_dim=hidden_dim,
         num_heads=8,
-        num_layers=24
+        num_layers=24,
+        text_embed_dim=text_embed_dim
     )
     
     # Forward pass
@@ -37,14 +39,18 @@ def test_audio_encoder():
     
     # Verify output shape
     expected_seq_len = seq_len // 16  # 4 CNN layers with stride 2
-    assert output.shape == (batch_size, expected_seq_len, hidden_dim), \
-        f"Expected shape {(batch_size, expected_seq_len, hidden_dim)}, got {output.shape}"
+    assert output.shape == (batch_size, expected_seq_len, text_embed_dim), \
+        f"Expected shape {(batch_size, expected_seq_len, text_embed_dim)}, got {output.shape}"
     
     # Verify no NaN values
     assert not torch.isnan(output).any(), "Output contains NaN values"
     
     # Verify no Inf values
     assert not torch.isinf(output).any(), "Output contains Inf values"
+    
+    # Verify MLP connector output range
+    assert output.min() > -100, "Output values too small"
+    assert output.max() < 100, "Output values too large"
     
     print("\nAll tests passed!")
 

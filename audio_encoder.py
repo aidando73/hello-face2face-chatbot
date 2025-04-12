@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class AudioEncoder(nn.Module):
-    def __init__(self, input_dim=80, hidden_dim=512, num_heads=8, num_layers=24):
+    def __init__(self, input_dim=80, hidden_dim=512, num_heads=8, num_layers=24, text_embed_dim=4096):
         super().__init__()
         
         # CNN downsampling layers
@@ -36,11 +36,11 @@ class AudioEncoder(nn.Module):
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         
-        # Audio-text modality connector (2-layer MLP)
+        # Two-layer MLP connector for audio-text modality
         self.connector = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim * 2),
             nn.GELU(),
-            nn.Linear(hidden_dim, hidden_dim)
+            nn.Linear(hidden_dim * 2, text_embed_dim)  # Project to language model's embedding dimension
         )
         
     def forward(self, x):
@@ -56,6 +56,6 @@ class AudioEncoder(nn.Module):
         x = self.transformer(x)
         
         # Apply modality connector
-        x = self.connector(x)
+        x = self.connector(x)  # (batch_size, seq_len/16, text_embed_dim)
         
         return x
