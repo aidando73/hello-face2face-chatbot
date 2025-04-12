@@ -57,7 +57,7 @@ class AudioTextAlignment(nn.Module):
         text_embeddings = self.model.model.get_input_embeddings()(text_inputs.input_ids)
         
         # Apply cross-attention
-        attended_audio, _ = self.cross_attention(
+        attended_audio, attention_weights = self.cross_attention(
             query=text_embeddings,
             key=audio_embeddings,
             value=audio_embeddings
@@ -77,7 +77,7 @@ class AudioTextAlignment(nn.Module):
             labels=text_inputs.input_ids
         )
         
-        return outputs.loss
+        return outputs.loss, attention_weights
 
     def contrastive_loss(self, audio_embeddings, text_embeddings):
         # Normalize embeddings
@@ -125,12 +125,17 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-4, save
     for epoch in range(num_epochs):
         total_loss = 0
         num_batches = 0
+        total_attention_variance = 0  # Track attention pattern diversity
         
         for batch_idx, batch in enumerate(train_loader):
             audio_paths, text_prompts, text_targets = batch
             
             # Forward pass
-            loss = alignment_model(audio_paths, text_prompts, text_targets)
+            loss, attention_weights = alignment_model(audio_paths, text_prompts, text_targets)
+            
+            # Calculate attention pattern metrics
+            attention_variance = torch.var(attention_weights, dim=-1).mean()
+            total_attention_variance += attention_variance.item()
             
             # Backward pass
             optimizer.zero_grad()
@@ -140,20 +145,25 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-4, save
             total_loss += loss.item()
             num_batches += 1
             
-            # Log batch loss
+            # Log batch metrics
             wandb.log({
                 "batch_loss": loss.item(),
+                "attention_variance": attention_variance.item(),
                 "epoch": epoch,
                 "batch": batch_idx
             })
         
-        # Calculate and log epoch loss
+        # Calculate and log epoch metrics
         epoch_loss = total_loss / num_batches
+        avg_attention_variance = total_attention_variance / num_batches
+        
         wandb.log({
             "epoch_loss": epoch_loss,
+            "avg_attention_variance": avg_attention_variance,
             "epoch": epoch
         })
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss}")
+        
+        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}, Attention Variance: {avg_attention_variance:.4f}")
         
         # Save checkpoint every epoch
         alignment_model.save(os.path.join(save_dir, f'epoch_{epoch+1}'))
