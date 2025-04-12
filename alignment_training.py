@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from audio_qwen_integration import AudioQwenModel
 import os
+import wandb
+from datetime import datetime
 
 class AudioTextAlignment(nn.Module):
     def __init__(self, model: AudioQwenModel):
@@ -95,6 +97,18 @@ class AudioTextAlignment(nn.Module):
         return (loss_audio + loss_text) / 2
 
 def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-4, save_dir='checkpoints'):
+    # Initialize wandb
+    wandb.init(
+        project="jarvis-facial-reads",
+        config={
+            "learning_rate": learning_rate,
+            "epochs": num_epochs,
+            "batch_size": train_loader.batch_size,
+            "model": "Qwen2.5-7B",
+            "optimizer": "AdamW"
+        }
+    )
+    
     alignment_model = AudioTextAlignment(model)
     
     # Freeze Qwen model parameters
@@ -107,9 +121,12 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-4, save
         {'params': alignment_model.cross_attention.parameters()}
     ], lr=learning_rate)
     
+    # Training loop
     for epoch in range(num_epochs):
         total_loss = 0
-        for batch in train_loader:
+        num_batches = 0
+        
+        for batch_idx, batch in enumerate(train_loader):
             audio_paths, text_prompts, text_targets = batch
             
             # Forward pass
@@ -121,12 +138,27 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-4, save
             optimizer.step()
             
             total_loss += loss.item()
+            num_batches += 1
+            
+            # Log batch loss
+            wandb.log({
+                "batch_loss": loss.item(),
+                "epoch": epoch,
+                "batch": batch_idx
+            })
         
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {total_loss/len(train_loader)}")
+        # Calculate and log epoch loss
+        epoch_loss = total_loss / num_batches
+        wandb.log({
+            "epoch_loss": epoch_loss,
+            "epoch": epoch
+        })
+        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss}")
         
         # Save checkpoint every epoch
         alignment_model.save(os.path.join(save_dir, f'epoch_{epoch+1}'))
     
+    wandb.finish()
     return alignment_model
 
 if __name__ == "__main__":
