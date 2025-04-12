@@ -99,7 +99,7 @@ class AudioTextAlignment(nn.Module):
 def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-4, save_dir='checkpoints'):
     # Initialize wandb
     wandb.init(
-        project="jarvis-social-iq",
+        project="jarvis-social-iq-module",
         config={
             "learning_rate": learning_rate,
             "epochs": num_epochs,
