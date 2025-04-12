@@ -6,7 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
 import wandb
 
-def load_librispeech_to_dataframe(data_dir, subset='train-clean-100'):
+def load_librispeech_to_dataframe(data_dir = "data/librispeech/LibriSpeech/", subset='dev-clean'):
     """
     Load LibriSpeech data into a pandas DataFrame.
     
