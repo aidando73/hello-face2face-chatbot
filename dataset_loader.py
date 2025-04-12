@@ -5,7 +5,7 @@ import os
 
 class LibriSpeechDataset(Dataset):
     def __init__(self, split='train', cache_dir='./cache'):
-        self.dataset = load_dataset('librispeech_asr', split=split, cache_dir=cache_dir)
+        self.dataset = load_dataset('openslr/librispeech_asr', split=split, cache_dir=cache_dir)
         self.cache_dir = cache_dir
         os.makedirs(cache_dir, exist_ok=True)
         
