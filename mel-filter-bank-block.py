@@ -3,6 +3,7 @@ import torchaudio
 import torchaudio.transforms as T
 import matplotlib.pyplot as plt
 import numpy as np
+from audio_encoder import AudioEncoder
 
 class MelFilterBank:
     def __init__(
@@ -74,7 +75,7 @@ def main():
     # Process audio file
     mel_spec = mel_filter.process_audio('audio-sample.wav')
     
-    # Print tensor information
+    # Print mel spectrogram information
     print("\nMel Spectrogram:")
     print(f"Shape: {mel_spec.shape}")
     print(f"Mean: {mel_spec.mean():.4f}")
@@ -82,10 +83,29 @@ def main():
     print(f"Min: {mel_spec.min():.4f}")
     print(f"Max: {mel_spec.max():.4f}")
     
-    # Visualize and save
+    # Visualize mel spectrogram
     mel_filter.visualize(mel_spec, 'mel_spectrogram.png')
     
-    return mel_spec
+    # Initialize and run audio encoder
+    audio_encoder = AudioEncoder(
+        input_dim=80,  # matches n_mels
+        hidden_dim=512,
+        num_heads=8,
+        num_layers=24
+    )
+    
+    # Process through audio encoder
+    encoded_audio = audio_encoder(mel_spec)
+    
+    # Print encoded audio information
+    print("\nEncoded Audio:")
+    print(f"Shape: {encoded_audio.shape}")
+    print(f"Mean: {encoded_audio.mean():.4f}")
+    print(f"Std: {encoded_audio.std():.4f}")
+    print(f"Min: {encoded_audio.min():.4f}")
+    print(f"Max: {encoded_audio.max():.4f}")
+    
+    return mel_spec, encoded_audio
 
 if __name__ == "__main__":
     main()
