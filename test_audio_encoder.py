@@ -10,6 +10,12 @@ def test_audio_encoder():
     
     # Create random input tensor
     dummy_input = torch.randn(batch_size, input_dim, seq_len)
+    print("\nInput tensor:")
+    print(f"Shape: {dummy_input.shape}")
+    print(f"Mean: {dummy_input.mean():.4f}")
+    print(f"Std: {dummy_input.std():.4f}")
+    print(f"Min: {dummy_input.min():.4f}")
+    print(f"Max: {dummy_input.max():.4f}")
     
     # Initialize the encoder
     encoder = AudioEncoder(
@@ -22,6 +28,13 @@ def test_audio_encoder():
     # Forward pass
     output = encoder(dummy_input)
     
+    print("\nOutput tensor:")
+    print(f"Shape: {output.shape}")
+    print(f"Mean: {output.mean():.4f}")
+    print(f"Std: {output.std():.4f}")
+    print(f"Min: {output.min():.4f}")
+    print(f"Max: {output.max():.4f}")
+    
     # Verify output shape
     expected_seq_len = seq_len // 16  # 4 CNN layers with stride 2
     assert output.shape == (batch_size, expected_seq_len, hidden_dim), \
@@ -33,7 +46,7 @@ def test_audio_encoder():
     # Verify no Inf values
     assert not torch.isinf(output).any(), "Output contains Inf values"
     
-    print("All tests passed!")
+    print("\nAll tests passed!")
 
 if __name__ == "__main__":
     test_audio_encoder() 
