@@ -72,7 +72,7 @@ def main():
     
     # Example usage
     audio_path = "audio-sample.wav"
-    text_prompt = "Based on the audio, what do you think?"
+    text_prompt = "The sky is blue because:"
     
     response = model.generate_response(audio_path, text_prompt)
     print(f"Response: {response}")
