@@ -51,21 +51,24 @@ class AudioTextAlignment(nn.Module):
         for audio_path, text_prompt, text_target in zip(audio_paths, text_prompts, text_targets):
             # Process single audio file
             audio_emb = self.model.process_audio(audio_path)
+            # Ensure audio_emb is on the same device as the model
+            audio_emb = audio_emb.to(self.model.model.device)
             
             # Process text prompt
             text_inputs = self.model.tokenizer(text_prompt, padding=True, return_tensors="pt")
-            # Ensure input_ids remain as long integers
+            # Ensure input_ids remain as long integers and move to correct device
             input_ids = text_inputs['input_ids'].long().to(self.model.model.device)
             attention_mask = text_inputs['attention_mask'].to(self.model.model.device)
             
+            # Get text embeddings and ensure they're on the correct device
             text_embeddings = self.model.model.get_input_embeddings()(input_ids)
+            text_embeddings = text_embeddings.to(self.model.model.device)
             
             # Apply cross-attention
-            # Remove extra batch dimension from audio_emb since it's already batched
             attended_audio, attention_weights = self.cross_attention(
                 query=text_embeddings,
-                key=audio_emb,  # audio_emb is already [batch_size, seq_len, hidden_size]
-                value=audio_emb   # audio_emb is already [batch_size, seq_len, hidden_size]
+                key=audio_emb,
+                value=audio_emb
             )
             
             # Combine embeddings
