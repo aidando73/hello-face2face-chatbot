@@ -44,40 +44,52 @@ class AudioTextAlignment(nn.Module):
         )
         
     def forward(self, audio_paths, text_prompts, text_targets):
-        # Process audio
-        audio_embeddings = []
-        for audio_path in audio_paths:
+        # Process each audio file separately
+        losses = []
+        attention_weights_list = []
+        
+        for audio_path, text_prompt, text_target in zip(audio_paths, text_prompts, text_targets):
+            # Process single audio file
             audio_emb = self.model.process_audio(audio_path)
-            audio_embeddings.append(audio_emb)
-        audio_embeddings = torch.stack(audio_embeddings)
+            
+            # Process text prompt
+            text_inputs = self.model.tokenizer(text_prompt, padding=True, return_tensors="pt")
+            # Ensure input_ids remain as long integers
+            input_ids = text_inputs['input_ids'].long().to(self.model.model.device)
+            attention_mask = text_inputs['attention_mask'].to(self.model.model.device)
+            
+            text_embeddings = self.model.model.get_input_embeddings()(input_ids)
+            
+            # Apply cross-attention
+            # Remove extra batch dimension from audio_emb since it's already batched
+            attended_audio, attention_weights = self.cross_attention(
+                query=text_embeddings,
+                key=audio_emb,  # audio_emb is already [batch_size, seq_len, hidden_size]
+                value=audio_emb   # audio_emb is already [batch_size, seq_len, hidden_size]
+            )
+            
+            # Combine embeddings
+            combined_embeddings = torch.cat([attended_audio, text_embeddings], dim=1)
+            
+            # Get attention mask
+            audio_mask = torch.ones(audio_emb.shape[:1], device=self.model.model.device)
+            combined_mask = torch.cat([audio_mask, attention_mask], dim=1)
+            
+            # Generate predictions
+            outputs = self.model.model(
+                inputs_embeds=combined_embeddings,
+                attention_mask=combined_mask,
+                labels=input_ids
+            )
+            
+            losses.append(outputs.loss)
+            attention_weights_list.append(attention_weights)
         
-        # Process text prompts
-        text_inputs = self.model.tokenizer(text_prompts, padding=True, return_tensors="pt")
-        text_inputs = {k: v.to(self.model.model.device) for k, v in text_inputs.items()}
-        text_embeddings = self.model.model.get_input_embeddings()(text_inputs.input_ids)
+        # Average the losses and stack attention weights
+        avg_loss = torch.mean(torch.stack(losses))
+        attention_weights = torch.stack(attention_weights_list)
         
-        # Apply cross-attention
-        attended_audio, attention_weights = self.cross_attention(
-            query=text_embeddings,
-            key=audio_embeddings,
-            value=audio_embeddings
-        )
-        
-        # Combine embeddings
-        combined_embeddings = torch.cat([attended_audio, text_embeddings], dim=1)
-        
-        # Get attention mask
-        audio_mask = torch.ones(audio_embeddings.shape[:2], device=self.model.model.device)
-        combined_mask = torch.cat([audio_mask, text_inputs.attention_mask], dim=1)
-        
-        # Generate predictions
-        outputs = self.model.model(
-            inputs_embeds=combined_embeddings,
-            attention_mask=combined_mask,
-            labels=text_inputs.input_ids
-        )
-        
-        return outputs.loss, attention_weights
+        return avg_loss, attention_weights
 
     def contrastive_loss(self, audio_embeddings, text_embeddings):
         # Normalize embeddings
@@ -128,7 +140,10 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-4, save
         total_attention_variance = 0  # Track attention pattern diversity
         
         for batch_idx, batch in enumerate(train_loader):
-            audio_paths, text_prompts, text_targets = batch
+            # Extract paths and targets from batch
+            audio_paths = batch['audio_paths']
+            text_prompts = batch['text_prompts']
+            text_targets = batch['text_targets']
             
             # Forward pass
             loss, attention_weights = alignment_model(audio_paths, text_prompts, text_targets)

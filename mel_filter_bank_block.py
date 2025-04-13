@@ -34,6 +34,7 @@ class MelFilterBank:
         
     def process_audio(self, audio_path: str) -> torch.Tensor:
         # Load audio file
+        print(f"Loading audio file: {audio_path}")
         waveform, sample_rate = torchaudio.load(audio_path)
         
         # Resample if necessary
