@@ -25,47 +25,23 @@ class AudioTextAlignment(nn.Module):
             
             print("audio_emb.shape", audio_emb.shape)
 
-            # Process transcription (text_target)
+            # Take first 30 frames (or pad if shorter)
+            target_frames = 30
+            if audio_emb.shape[1] < target_frames:
+                padding = torch.zeros(1, target_frames - audio_emb.shape[1], audio_emb.shape[2], 
+                                    device=audio_emb.device, dtype=audio_emb.dtype)
+                audio_emb = torch.cat([audio_emb, padding], dim=1)
+            else:
+                audio_emb = audio_emb[:, :target_frames, :]
+            
+            # Tokenize the target text (for loss computation)
             text_inputs = self.model.tokenizer(text_target, padding=True, return_tensors="pt")
-            input_ids = text_inputs['input_ids'].long().to(self.model.model.device)
-            attention_mask = text_inputs['attention_mask'].to(self.model.model.device)
-
-            print("text_inputs", text_inputs)
-            print("input_ids.shape", input_ids.shape)
-            print("attention_mask.shape", attention_mask.shape)
+            target_ids = text_inputs['input_ids'].long().to(self.model.model.device)
             
-            # Get text embeddings
-            text_embeddings = self.model.model.get_input_embeddings()(input_ids)
-            text_embeddings = text_embeddings.to(self.model.model.device).to(self.model.model.dtype)
-
-            print("text_embeddings.shape", text_embeddings.shape)
-            
-            # Combine embeddings
-            # audio_emb is [1, 80, X], we need to reshape it to match text_embeddings
-            audio_emb = audio_emb.mean(dim=1)  # Average over the 80 channels
-            audio_emb = audio_emb.unsqueeze(1)  # Add sequence dimension
-            combined_embeddings = torch.cat([audio_emb, text_embeddings], dim=1)
-
-            print("audio_emb.shape", audio_emb.shape)
-            print("combined_embeddings.shape", combined_embeddings.shape)
-            
-            # Get attention mask
-            audio_mask = torch.ones(1, 1, device=self.model.model.device)  # [batch_size, 1]
-            if attention_mask.dim() == 3:
-                attention_mask = attention_mask.squeeze(0)
-            combined_mask = torch.cat([audio_mask, attention_mask], dim=1)
-            
-            # Generate predictions
-            # Pad labels to match combined_embeddings length
-            padded_labels = torch.cat([
-                torch.full((1, 1), -100, device=self.model.model.device),  # -100 is ignored in loss
-                input_ids
-            ], dim=1)
-            
+            # Generate text from audio embeddings
             outputs = self.model.model(
-                inputs_embeds=combined_embeddings,
-                attention_mask=combined_mask,
-                labels=padded_labels
+                inputs_embeds=audio_emb,
+                labels=target_ids  # This will make the model try to predict the target text
             )
 
             print("outputs.loss", outputs.loss)
