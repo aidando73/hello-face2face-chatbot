@@ -5,6 +5,7 @@ from audio_qwen_integration import AudioQwenModel
 import os
 import wandb
 from datetime import datetime
+from tqdm import tqdm
 
 class AudioTextAlignment(nn.Module):
     def __init__(self, model: AudioQwenModel):
@@ -14,6 +15,8 @@ class AudioTextAlignment(nn.Module):
     def forward(self, audio_paths, text_prompts, text_targets):
         # Process each audio file separately
         losses = []
+        
+        print("Model hidden size:", self.model.model.config.hidden_size)
         
         for audio_path, text_target in zip(audio_paths, text_targets):
             # Process audio using the model's existing functionality
@@ -53,10 +56,16 @@ class AudioTextAlignment(nn.Module):
             combined_mask = torch.cat([audio_mask, attention_mask], dim=1)
             
             # Generate predictions
+            # Pad labels to match combined_embeddings length
+            padded_labels = torch.cat([
+                torch.full((1, 1), -100, device=self.model.model.device),  # -100 is ignored in loss
+                input_ids
+            ], dim=1)
+            
             outputs = self.model.model(
                 inputs_embeds=combined_embeddings,
                 attention_mask=combined_mask,
-                labels=input_ids
+                labels=padded_labels
             )
 
             print("outputs.loss", outputs.loss)
@@ -96,14 +105,21 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-4, save
         total_loss = 0
         num_batches = 0
         
-        for batch_idx, batch in enumerate(train_loader):
+        for batch_idx, batch in tqdm(enumerate(train_loader), desc=f"Batches (Epoch {epoch+1}/{num_epochs})", total=len(train_loader)):
             # Extract paths and targets from batch
             audio_paths = batch['audio_paths']
             text_prompts = batch['text_prompts']
             text_targets = batch['text_targets']
             
             # Forward pass
-            loss, _ = alignment_model(audio_paths, text_prompts, text_targets)
+            loss = alignment_model(audio_paths, text_prompts, text_targets)
+            
+            # Check for NaN loss
+            if torch.isnan(loss):
+                print("Warning: NaN loss detected!")
+                print("Audio paths:", audio_paths)
+                print("Text targets:", text_targets)
+                continue
             
             # Backward pass
             optimizer.zero_grad()
