@@ -15,22 +15,31 @@ class AudioTextAlignment(nn.Module):
         # Process each audio file separately
         losses = []
         
-        for audio_path, text_prompt, text_target in zip(audio_paths, text_prompts, text_targets):
-            # Process audio and text using the model's existing functionality
+        for audio_path, text_target in zip(audio_paths, text_targets):
+            # Process audio using the model's existing functionality
             audio_emb = self.model.process_audio(audio_path)
             audio_emb = audio_emb.to(self.model.model.device).to(self.model.model.dtype)
             
-            # Process text prompt
-            text_inputs = self.model.tokenizer(text_prompt, padding=True, return_tensors="pt")
+            print("audio_emb.shape", audio_emb.shape)
+
+            # Process transcription (text_target)
+            text_inputs = self.model.tokenizer(text_target, padding=True, return_tensors="pt")
             input_ids = text_inputs['input_ids'].long().to(self.model.model.device)
             attention_mask = text_inputs['attention_mask'].to(self.model.model.device)
+
+            print("text_inputs", text_inputs)
+            print("input_ids.shape", input_ids.shape)
+            print("attention_mask.shape", attention_mask.shape)
             
             # Get text embeddings
             text_embeddings = self.model.model.get_input_embeddings()(input_ids)
             text_embeddings = text_embeddings.to(self.model.model.device).to(self.model.model.dtype)
             
             # Combine embeddings
-            combined_embeddings = torch.cat([audio_emb.unsqueeze(1), text_embeddings], dim=1)
+            # audio_emb is [1, 80, X], we need to reshape it to match text_embeddings
+            audio_emb = audio_emb.mean(dim=1)  # Average over the 80 channels
+            audio_emb = audio_emb.unsqueeze(1)  # Add sequence dimension
+            combined_embeddings = torch.cat([audio_emb, text_embeddings], dim=1)
             
             # Get attention mask
             audio_mask = torch.ones(1, 1, device=self.model.model.device)  # [batch_size, 1]
@@ -44,6 +53,8 @@ class AudioTextAlignment(nn.Module):
                 attention_mask=combined_mask,
                 labels=input_ids
             )
+
+            print("outputs.loss", outputs.loss)
             
             losses.append(outputs.loss)
         
