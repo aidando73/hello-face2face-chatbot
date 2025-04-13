@@ -23,27 +23,72 @@ class AudioTextAlignment(nn.Module):
             audio_emb = self.model.process_audio(audio_path)
             audio_emb = audio_emb.to(self.model.model.device).to(self.model.model.dtype)
             
+            # Scale the audio embeddings to have unit variance
+            # audio_emb = audio_emb / (audio_emb.std() + 1e-6)
+            
             print("audio_emb.shape", audio_emb.shape)
 
-            # Take first 30 frames (or pad if shorter)
-            target_frames = 30
-            if audio_emb.shape[1] < target_frames:
-                padding = torch.zeros(1, target_frames - audio_emb.shape[1], audio_emb.shape[2], 
-                                    device=audio_emb.device, dtype=audio_emb.dtype)
-                audio_emb = torch.cat([audio_emb, padding], dim=1)
-            else:
-                audio_emb = audio_emb[:, :target_frames, :]
-            
             # Tokenize the target text (for loss computation)
             text_inputs = self.model.tokenizer(text_target, padding=True, return_tensors="pt")
             target_ids = text_inputs['input_ids'].long().to(self.model.model.device)
+            attention_mask = text_inputs['attention_mask'].to(self.model.model.device)
+            
+            # Get the sequence length from the target
+            seq_length = target_ids.shape[1]
+            
+            # Pad the audio embeddings to match the sequence length
+            if audio_emb.shape[1] < seq_length:
+                # Create padding tensor
+                padding = torch.zeros(
+                    audio_emb.shape[0], 
+                    seq_length - audio_emb.shape[1], 
+                    audio_emb.shape[2],
+                    device=audio_emb.device,
+                    dtype=audio_emb.dtype
+                )
+                # Concatenate padding
+                audio_emb = torch.cat([audio_emb, padding], dim=1)
+            else:
+                # If audio is longer, truncate it
+                audio_emb = audio_emb[:, :seq_length, :]
+            
+            # Create audio attention mask (1 for actual audio, 0 for padding)
+            audio_attention_mask = torch.ones(
+                (audio_emb.shape[0], audio_emb.shape[1]),
+                device=audio_emb.device,
+                dtype=torch.long
+            )
+            
+            # Print input statistics for debugging
+            print(f"Audio embedding stats - mean: {audio_emb.mean().item():.4f}, std: {audio_emb.std().item():.4f}")
             
             # Generate text from audio embeddings
             outputs = self.model.model(
                 inputs_embeds=audio_emb,
-                labels=target_ids  # This will make the model try to predict the target text
+                attention_mask=audio_attention_mask,
+                labels=target_ids
             )
 
+            # Decode the model's output logits to get the predicted tokens
+            logits = outputs.logits
+            
+            # Get the predicted token IDs (take the argmax along the vocabulary dimension)
+            predicted_token_ids = torch.argmax(logits, dim=-1)
+            
+            # Convert the predicted token IDs back to text
+            predicted_text = self.model.tokenizer.batch_decode(
+                predicted_token_ids, 
+                skip_special_tokens=True
+            )
+            
+            target_text = self.model.tokenizer.batch_decode(
+                target_ids,
+                skip_special_tokens=True
+            )
+            print("\nSample prediction:")
+            print(f"Target: {target_text[0]}")
+            print(f"Prediction: {predicted_text[0]}")
+            print(f"Loss: {outputs.loss.item():.4f}")
             print("outputs.loss", outputs.loss)
             
             losses.append(outputs.loss)
@@ -52,7 +97,7 @@ class AudioTextAlignment(nn.Module):
         avg_loss = torch.mean(torch.stack(losses))
         return avg_loss
 
-def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-4, save_dir='checkpoints'):
+def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-5, save_dir='checkpoints'):
     # Initialize wandb
     wandb.init(
         project="jarvis-social-iq-module",
@@ -100,6 +145,40 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-4, save
             # Backward pass
             optimizer.zero_grad()
             loss.backward()
+            
+            # Calculate gradient norm
+            grad_norm = 0.0
+            for p in alignment_model.model.audio_encoder.parameters():
+                if p.grad is not None:
+                    grad_norm += p.grad.data.norm(2).item() ** 2
+            grad_norm = grad_norm ** 0.5
+            
+            # Print gradient statistics for each layer
+            print("\nGradient statistics per layer:")
+            for name, param in alignment_model.model.audio_encoder.named_parameters():
+                if param.grad is not None:
+                    print(f"{name}: mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}")
+            
+            # Clip gradients
+            max_grad_norm = 1.0
+            if grad_norm > max_grad_norm:
+                torch.nn.utils.clip_grad_norm_(
+                    alignment_model.model.audio_encoder.parameters(),
+                    max_grad_norm
+                )
+                grad_norm = max_grad_norm
+                print(f"Gradients clipped from {grad_norm:.4f} to {max_grad_norm}")
+            
+            # Log gradient norm
+            wandb.log({
+                "batch_loss": loss.item(),
+                "grad_norm": grad_norm,
+                "epoch": epoch,
+                "batch": batch_idx
+            })
+            
+            print(f"Gradient norm: {grad_norm:.4f}")
+            
             optimizer.step()
             
             total_loss += loss.item()
