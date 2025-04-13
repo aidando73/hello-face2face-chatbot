@@ -34,12 +34,17 @@ class AudioTextAlignment(nn.Module):
             # Get text embeddings
             text_embeddings = self.model.model.get_input_embeddings()(input_ids)
             text_embeddings = text_embeddings.to(self.model.model.device).to(self.model.model.dtype)
+
+            print("text_embeddings.shape", text_embeddings.shape)
             
             # Combine embeddings
             # audio_emb is [1, 80, X], we need to reshape it to match text_embeddings
             audio_emb = audio_emb.mean(dim=1)  # Average over the 80 channels
             audio_emb = audio_emb.unsqueeze(1)  # Add sequence dimension
             combined_embeddings = torch.cat([audio_emb, text_embeddings], dim=1)
+
+            print("audio_emb.shape", audio_emb.shape)
+            print("combined_embeddings.shape", combined_embeddings.shape)
             
             # Get attention mask
             audio_mask = torch.ones(1, 1, device=self.model.model.device)  # [batch_size, 1]
