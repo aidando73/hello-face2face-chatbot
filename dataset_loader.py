@@ -82,7 +82,7 @@ def create_dataloader(data_dir, subset='train-clean-100', batch_size=8, num_work
         dataset,
         batch_size=batch_size,
         num_workers=num_workers,
-        shuffle=True if 'train' in subset else False,
+        shuffle=True,
         collate_fn=lambda batch: {
             'audio_paths': [item['audio_path'] for item in batch],
             'text_prompts': [item['text_prompt'] for item in batch],

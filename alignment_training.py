@@ -175,5 +175,7 @@ if __name__ == "__main__":
     # Example usage
     model = AudioQwenModel()
     # You would need to create a DataLoader with your audio-text pairs
-    # train_loader = create_your_dataloader()
-    # train_alignment(model, train_loader) 
+    # train_loader = create_your_dataloader
+    import dataset_loader
+    train_loader = dataset_loader.create_dataloader(data_dir="data/librispeech/LibriSpeech/", subset='dev-clean')
+    train_alignment(model, train_loader) 

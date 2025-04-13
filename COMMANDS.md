@@ -11,6 +11,7 @@ ffmpeg -i audio-sample.m4a -acodec pcm_s16le -ar 16000 -ac 1 audio-sample.wav
 # Run dataset2.ipynb to download the dataset
 tmux
 source ~/miniconda3/bin/activate ./env
+python alignment_training.py
 ```
 
 Pod usage begins at: 12 Apr 2025
