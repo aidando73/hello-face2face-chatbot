@@ -18,6 +18,8 @@ class AudioTextAlignment(nn.Module):
             num_heads=8,
             batch_first=True
         )
+        # Move cross-attention to the same device and precision as the model
+        self.cross_attention = self.cross_attention.to(model.model.device).to(model.model.dtype)
         
     def save(self, save_dir: str):
         """Save the alignment model and audio encoder"""
@@ -51,18 +53,18 @@ class AudioTextAlignment(nn.Module):
         for audio_path, text_prompt, text_target in zip(audio_paths, text_prompts, text_targets):
             # Process single audio file
             audio_emb = self.model.process_audio(audio_path)
-            # Ensure audio_emb is on the same device as the model
-            audio_emb = audio_emb.to(self.model.model.device)
+            # Ensure audio_emb is on the same device and precision as the model
+            audio_emb = audio_emb.to(self.model.model.device).to(self.model.model.dtype)
             
             # Process text prompt
             text_inputs = self.model.tokenizer(text_prompt, padding=True, return_tensors="pt")
-            # Ensure input_ids remain as long integers and move to correct device
+            # Ensure input_ids remain as long integers and move to correct device/precision
             input_ids = text_inputs['input_ids'].long().to(self.model.model.device)
             attention_mask = text_inputs['attention_mask'].to(self.model.model.device)
             
-            # Get text embeddings and ensure they're on the correct device
+            # Get text embeddings and ensure they're on the correct device and precision
             text_embeddings = self.model.model.get_input_embeddings()(input_ids)
-            text_embeddings = text_embeddings.to(self.model.model.device)
+            text_embeddings = text_embeddings.to(self.model.model.device).to(self.model.model.dtype)
             
             # Apply cross-attention
             attended_audio, attention_weights = self.cross_attention(
