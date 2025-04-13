@@ -77,7 +77,12 @@ class AudioTextAlignment(nn.Module):
             combined_embeddings = torch.cat([attended_audio, text_embeddings], dim=1)
             
             # Get attention mask
-            audio_mask = torch.ones(audio_emb.shape[:1], device=self.model.model.device)
+            # Create audio_mask with same dimensions as attention_mask
+            audio_mask = torch.ones(1, audio_emb.shape[0], device=self.model.model.device)  # [batch_size, seq_len]
+            # Ensure attention_mask has the right shape [batch_size, seq_len]
+            if attention_mask.dim() == 3:
+                attention_mask = attention_mask.squeeze(0)  # Remove extra dimension if present
+            
             combined_mask = torch.cat([audio_mask, attention_mask], dim=1)
             
             # Generate predictions
