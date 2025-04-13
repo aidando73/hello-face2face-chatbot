@@ -10,79 +10,32 @@ class AudioTextAlignment(nn.Module):
     def __init__(self, model: AudioQwenModel):
         super().__init__()
         self.model = model
-        self.temperature = 0.07  # Temperature for contrastive learning
-        
-        # Cross-attention layer for audio-text alignment
-        self.cross_attention = nn.MultiheadAttention(
-            embed_dim=model.model.config.hidden_size,
-            num_heads=8,
-            batch_first=True
-        )
-        # Move cross-attention to the same device and precision as the model
-        self.cross_attention = self.cross_attention.to(model.model.device).to(model.model.dtype)
-        
-    def save(self, save_dir: str):
-        """Save the alignment model and audio encoder"""
-        os.makedirs(save_dir, exist_ok=True)
-        
-        # Save the audio encoder
-        torch.save(self.model.audio_encoder.state_dict(), 
-                  os.path.join(save_dir, 'audio_encoder.pt'))
-        
-        # Save the cross-attention layer
-        torch.save(self.cross_attention.state_dict(),
-                  os.path.join(save_dir, 'cross_attention.pt'))
-        
-    def load(self, save_dir: str):
-        """Load the alignment model and audio encoder"""
-        # Load the audio encoder
-        self.model.audio_encoder.load_state_dict(
-            torch.load(os.path.join(save_dir, 'audio_encoder.pt'))
-        )
-        
-        # Load the cross-attention layer
-        self.cross_attention.load_state_dict(
-            torch.load(os.path.join(save_dir, 'cross_attention.pt'))
-        )
         
     def forward(self, audio_paths, text_prompts, text_targets):
         # Process each audio file separately
         losses = []
-        attention_weights_list = []
         
         for audio_path, text_prompt, text_target in zip(audio_paths, text_prompts, text_targets):
-            # Process single audio file
+            # Process audio and text using the model's existing functionality
             audio_emb = self.model.process_audio(audio_path)
-            # Ensure audio_emb is on the same device and precision as the model
             audio_emb = audio_emb.to(self.model.model.device).to(self.model.model.dtype)
             
             # Process text prompt
             text_inputs = self.model.tokenizer(text_prompt, padding=True, return_tensors="pt")
-            # Ensure input_ids remain as long integers and move to correct device/precision
             input_ids = text_inputs['input_ids'].long().to(self.model.model.device)
             attention_mask = text_inputs['attention_mask'].to(self.model.model.device)
             
-            # Get text embeddings and ensure they're on the correct device and precision
+            # Get text embeddings
             text_embeddings = self.model.model.get_input_embeddings()(input_ids)
             text_embeddings = text_embeddings.to(self.model.model.device).to(self.model.model.dtype)
             
-            # Apply cross-attention
-            attended_audio, attention_weights = self.cross_attention(
-                query=text_embeddings,
-                key=audio_emb,
-                value=audio_emb
-            )
-            
             # Combine embeddings
-            combined_embeddings = torch.cat([attended_audio, text_embeddings], dim=1)
+            combined_embeddings = torch.cat([audio_emb.unsqueeze(1), text_embeddings], dim=1)
             
             # Get attention mask
-            # Create audio_mask with same dimensions as attention_mask
-            audio_mask = torch.ones(1, audio_emb.shape[0], device=self.model.model.device)  # [batch_size, seq_len]
-            # Ensure attention_mask has the right shape [batch_size, seq_len]
+            audio_mask = torch.ones(1, 1, device=self.model.model.device)  # [batch_size, 1]
             if attention_mask.dim() == 3:
-                attention_mask = attention_mask.squeeze(0)  # Remove extra dimension if present
-            
+                attention_mask = attention_mask.squeeze(0)
             combined_mask = torch.cat([audio_mask, attention_mask], dim=1)
             
             # Generate predictions
@@ -93,30 +46,10 @@ class AudioTextAlignment(nn.Module):
             )
             
             losses.append(outputs.loss)
-            attention_weights_list.append(attention_weights)
         
-        # Average the losses and stack attention weights
+        # Average the losses
         avg_loss = torch.mean(torch.stack(losses))
-        attention_weights = torch.stack(attention_weights_list)
-        
-        return avg_loss, attention_weights
-
-    def contrastive_loss(self, audio_embeddings, text_embeddings):
-        # Normalize embeddings
-        audio_embeddings = F.normalize(audio_embeddings, dim=-1)
-        text_embeddings = F.normalize(text_embeddings, dim=-1)
-        
-        # Compute similarity matrix
-        similarity = torch.matmul(audio_embeddings, text_embeddings.t()) / self.temperature
-        
-        # Create labels for contrastive learning
-        labels = torch.arange(similarity.size(0), device=similarity.device)
-        
-        # Compute loss
-        loss_audio = F.cross_entropy(similarity, labels)
-        loss_text = F.cross_entropy(similarity.t(), labels)
-        
-        return (loss_audio + loss_text) / 2
+        return avg_loss
 
 def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-4, save_dir='checkpoints'):
     # Initialize wandb
@@ -137,17 +70,15 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-4, save
     for param in alignment_model.model.model.parameters():
         param.requires_grad = False
     
-    # Only optimize the audio encoder and cross-attention
+    # Only optimize the audio encoder
     optimizer = torch.optim.AdamW([
-        {'params': alignment_model.model.audio_encoder.parameters()},
-        {'params': alignment_model.cross_attention.parameters()}
+        {'params': alignment_model.model.audio_encoder.parameters()}
     ], lr=learning_rate)
     
     # Training loop
     for epoch in range(num_epochs):
         total_loss = 0
         num_batches = 0
-        total_attention_variance = 0  # Track attention pattern diversity
         
         for batch_idx, batch in enumerate(train_loader):
             # Extract paths and targets from batch
@@ -156,11 +87,7 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-4, save
             text_targets = batch['text_targets']
             
             # Forward pass
-            loss, attention_weights = alignment_model(audio_paths, text_prompts, text_targets)
-            
-            # Calculate attention pattern metrics
-            attention_variance = torch.var(attention_weights, dim=-1).mean()
-            total_attention_variance += attention_variance.item()
+            loss, _ = alignment_model(audio_paths, text_prompts, text_targets)
             
             # Backward pass
             optimizer.zero_grad()
@@ -173,22 +100,19 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-4, save
             # Log batch metrics
             wandb.log({
                 "batch_loss": loss.item(),
-                "attention_variance": attention_variance.item(),
                 "epoch": epoch,
                 "batch": batch_idx
             })
         
         # Calculate and log epoch metrics
         epoch_loss = total_loss / num_batches
-        avg_attention_variance = total_attention_variance / num_batches
         
         wandb.log({
             "epoch_loss": epoch_loss,
-            "avg_attention_variance": avg_attention_variance,
             "epoch": epoch
         })
         
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}, Attention Variance: {avg_attention_variance:.4f}")
+        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}")
         
         # Save checkpoint every epoch
         alignment_model.save(os.path.join(save_dir, f'epoch_{epoch+1}'))
