@@ -1,7 +1,6 @@
 import torch
 from torchviz import make_dot
 from audio_qwen_integration import AudioQwenModel
-from audio_encoder import AudioEncoder
 import os
 
 def visualize_model():
@@ -28,16 +27,18 @@ def visualize_model():
         inputs_embeds=audio_emb,
         attention_mask=attention_mask
     )
+
+    # print(outputs.logits.grad_fn)
     
-    # Create visualization
+    # Create visualization with just audio encoder parameters
     dot = make_dot(outputs.logits, 
-                  params=dict(model.model.named_parameters()),
+                  params=dict(model.audio_encoder.named_parameters()),
                   show_attrs=True,
                   show_saved=True)
     
     # Save the visualization
-    dot.render('model_graph.png', format='png', cleanup=True)
-    print("Model graph saved as 'model_graph.png'")
+    dot.render('model_graph', format='svg', cleanup=True)
+    print("Model graph saved as 'model_graph.svg'")
 
 if __name__ == "__main__":
     visualize_model() 
