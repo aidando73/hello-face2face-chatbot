@@ -6,3 +6,5 @@ torchaudio>=2.0.0
 matplotlib>=3.0.0 
 datasets>=2.14.0
 wandb>=0.15.0
+torchviz
+graphviz
