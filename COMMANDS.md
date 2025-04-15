@@ -12,6 +12,8 @@ ffmpeg -i audio-sample.m4a -acodec pcm_s16le -ar 16000 -ac 1 audio-sample.wav
 tmux
 source ~/miniconda3/bin/activate ./env
 python alignment_training.py
+
+python alignment_training.py | tee alignment_training.log
 ```
 
 Pod usage begins at: 12 Apr 2025
