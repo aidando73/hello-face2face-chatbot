@@ -59,6 +59,8 @@ class AudioEncoder(nn.Module):
         # Apply CNN downsampling
         x = self.cnn_layers(x)  # (batch_size, hidden_dim, seq_len/16)
         
+        print("CNN output shape:", x.shape)
+
         # Debug: Print CNN output stats
         print(f"CNN output stats - mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
         
