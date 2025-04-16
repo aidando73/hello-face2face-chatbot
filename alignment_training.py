@@ -55,7 +55,7 @@ class AudioTextAlignment(nn.Module):
             
             print(f"audio_emb mean: {audio_emb.mean().item():.4f}, std: {audio_emb.std().item():.4f}, min: {audio_emb.min().item():.4f}, max: {audio_emb.max().item():.4f}")
             print(f"text_emb mean: {text_emb.mean().item():.4f}, std: {text_emb.std().item():.4f}, min: {text_emb.min().item():.4f}, max: {text_emb.max().item():.4f}")
-            
+
             # Generate text from audio embeddings
             outputs = self.model.model(
                 inputs_embeds=input_embeds,
@@ -234,7 +234,18 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-9, save
             if os.environ.get("DEBUG"):
                 print(f"Gradient norm: {grad_norm:.4f}")
             
+
+            # Print parameters of the connector model
+            print("\nConnector model parameters - before step:")
+            for name, param in alignment_model.model.audio_encoder.connector.named_parameters():
+                print(f"{name}: shape={param.shape}, mean={param.data.mean().item():.6f}, std={param.data.std().item():.6f}, min={param.data.min().item():.6f}, max={param.data.max().item():.6f}")
+
             optimizer.step()
+
+            # Print parameters of the connector model
+            print("\nConnector model parameters - after step:")
+            for name, param in alignment_model.model.audio_encoder.connector.named_parameters():
+                print(f"{name}: shape={param.shape}, mean={param.data.mean().item():.6f}, std={param.data.std().item():.6f}, min={param.data.min().item():.6f}, max={param.data.max().item():.6f}")
             
             total_loss += loss.item()
             num_batches += 1

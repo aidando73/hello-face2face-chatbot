@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import os
+from collections import OrderedDict
 
 class AudioEncoder(nn.Module):
     def __init__(self, input_dim=80, hidden_dim=512, num_heads=8, num_layers=24, text_embed_dim=4096):
@@ -38,14 +39,16 @@ class AudioEncoder(nn.Module):
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         
         # Two-layer MLP connector for audio-text modality
-        self.connector = nn.Sequential(
+        self.connector = nn.Sequential(OrderedDict([
+            ("layernorm1", nn.LayerNorm(hidden_dim)),
+            ("linear1", nn.Linear(hidden_dim, text_embed_dim)),
+        ]))
             # nn.Linear(hidden_dim, hidden_dim * 2),
             # nn.LayerNorm(hidden_dim * 2),  # Add normalization after first linear
             # nn.GELU(),
-            nn.LayerNorm(hidden_dim),
-            nn.Linear(hidden_dim, text_embed_dim),
+            # nn.LayerNorm(hidden_dim),
+            # nn.Linear(hidden_dim, text_embed_dim),
             # nn.LayerNorm(text_embed_dim)  # Add normalization to final output
-        )
 
         # # Initialize CNN layers
         # for m in self.cnn_layers.modules():
