@@ -146,18 +146,18 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-7, save
     for param in alignment_model.model.audio_encoder.connector.parameters():
         param.requires_grad = True
     
-    with torch.no_grad():
-        for param in alignment_model.model.audio_encoder.connector.parameters():
-            param.data.fill_(0.01)
+    # with torch.no_grad():
+    #     for param in alignment_model.model.audio_encoder.connector.parameters():
+    #         param.data.fill_(0.01)
     
-    # Initialize to almost-identity
-    with torch.no_grad():
-        for m in alignment_model.model.audio_encoder.connector.modules():
-            if isinstance(m, nn.Linear):
-                # Initialize weights to be very close to zero
-                nn.init.normal_(m.weight, mean=0.0, std=0.001)
-                if m.bias is not None:
-                    nn.init.zeros_(m.bias)
+    # # Initialize to almost-identity
+    # with torch.no_grad():
+    #     for m in alignment_model.model.audio_encoder.connector.modules():
+    #         if isinstance(m, nn.Linear):
+    #             # Initialize weights to be very close to zero
+    #             nn.init.normal_(m.weight, mean=0.0, std=0.001)
+    #             if m.bias is not None:
+    #                 nn.init.zeros_(m.bias)
             
     # Only optimize the audio encoder
     optimizer = torch.optim.AdamW([
