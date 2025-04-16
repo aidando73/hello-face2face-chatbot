@@ -6,6 +6,7 @@ import os
 import wandb
 from datetime import datetime
 from tqdm import tqdm
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 class AudioTextAlignment(nn.Module):
     def __init__(self, model: AudioQwenModel):
@@ -139,7 +140,8 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-6, save
             "epochs": num_epochs,
             "batch_size": train_loader.batch_size,
             "model": "Qwen2.5-7B",
-            "optimizer": "AdamW"
+            "optimizer": "AdamW",
+            "scheduler": "CosineAnnealing"
         }
     )
     
@@ -168,6 +170,12 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-6, save
         {'params': alignment_model.model.audio_encoder.connector.parameters()}
     ], lr=learning_rate, momentum=0.5)
 
+    # Add cosine annealing scheduler
+    scheduler = CosineAnnealingLR(
+        optimizer, 
+        T_max=num_epochs,
+        eta_min=learning_rate / 10
+    )
     
     # Training loop
     for epoch in range(num_epochs):
@@ -263,7 +271,8 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-6, save
             wandb.log({
                 "batch_loss": loss.item(),
                 "epoch": epoch,
-                "batch": batch_idx
+                "batch": batch_idx,
+                "learning_rate": scheduler.get_last_lr()[0]
             })
 
             print("--------------------------------")
@@ -275,10 +284,14 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-6, save
         
         wandb.log({
             "epoch_loss": epoch_loss,
-            "epoch": epoch
+            "epoch": epoch,
+            "learning_rate": scheduler.get_last_lr()[0]
         })
         
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}")
+        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}, LR: {scheduler.get_last_lr()[0]:.8f}")
+        
+        # Step the scheduler at the end of each epoch
+        scheduler.step()
         
         # Save checkpoint every epoch
         timestamp = datetime.now().strftime('%Y%m%d_%H%M')
