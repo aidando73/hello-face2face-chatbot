@@ -45,6 +45,23 @@ class AudioEncoder(nn.Module):
             nn.Linear(hidden_dim * 2, text_embed_dim),
             nn.LayerNorm(text_embed_dim)  # Add normalization to final output
         )
+
+        # Initialize CNN layers
+        for m in self.cnn_layers.modules():
+            if isinstance(m, nn.Conv1d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.BatchNorm1d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+        
+        # Initialize connector with small weights
+        for m in self.connector.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, mean=0.0, std=0.001)  # Very small initialization
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
         
     def forward(self, x):
         # x shape: (batch_size, input_dim, seq_len)
