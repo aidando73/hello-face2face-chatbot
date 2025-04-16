@@ -39,16 +39,18 @@ class AudioEncoder(nn.Module):
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         
         # Two-layer MLP connector for audio-text modality
+        # self.connector = nn.Sequential(OrderedDict([
+        #     # ("layernorm1", nn.LayerNorm(hidden_dim, eps=1e-2)),
+        #     ("linear1", nn.Linear(hidden_dim, text_embed_dim)),
+        # ]))
         self.connector = nn.Sequential(OrderedDict([
-            # ("layernorm1", nn.LayerNorm(hidden_dim, eps=1e-2)),
-            ("linear1", nn.Linear(hidden_dim, text_embed_dim)),
+            ("linear1", nn.Linear(hidden_dim, hidden_dim * 2)),
+            ("layernorm1", nn.LayerNorm(hidden_dim * 2)),  # Add normalization after first linear
+            ("gelu1", nn.GELU()),
+            ("layernorm2", nn.LayerNorm(hidden_dim)),
+            ("linear2", nn.Linear(hidden_dim, text_embed_dim)),
+            ("layernorm3", nn.LayerNorm(text_embed_dim))  # Add normalization to final output
         ]))
-            # nn.Linear(hidden_dim, hidden_dim * 2),
-            # nn.LayerNorm(hidden_dim * 2),  # Add normalization after first linear
-            # nn.GELU(),
-            # nn.LayerNorm(hidden_dim),
-            # nn.Linear(hidden_dim, text_embed_dim),
-            # nn.LayerNorm(text_embed_dim)  # Add normalization to final output
 
         # # Initialize CNN layers
         # for m in self.cnn_layers.modules():
