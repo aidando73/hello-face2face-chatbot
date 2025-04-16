@@ -18,16 +18,16 @@ class AudioTextAlignment(nn.Module):
         if os.environ.get("DEBUG"):
             print("Model hidden size:", self.model.model.config.hidden_size)
         
-        if text_targets is None:
-            audio_emb = self.model.process_audio(audio_paths[0])
-            outputs = self.model.model(
-                inputs_embeds=audio_emb,
-            )
-            predicted_text = self.model.tokenizer.batch_decode(
-                outputs.logits.argmax(dim=-1), 
-                skip_special_tokens=True
-            )
-            return predicted_text
+        # if text_targets is None:
+        #     audio_emb = self.model.process_audio(audio_paths[0])
+        #     outputs = self.model.model(
+        #         inputs_embeds=audio_emb,
+        #     )
+        #     predicted_text = self.model.tokenizer.batch_decode(
+        #         outputs.logits.argmax(dim=-1), 
+        #         skip_special_tokens=True
+        #     )
+        #     return predicted_text
         
         for audio_path, text_target in zip(audio_paths, text_targets):
             # Process audio using the model's existing functionality
@@ -82,7 +82,6 @@ class AudioTextAlignment(nn.Module):
             print(f"Target: {text_target}")
             print(f"Prediction: {predicted_text[0]}")
             print(f"Loss: {outputs.loss.item():.4f}")
-            print("outputs.loss", outputs.loss)
             
             losses.append(outputs.loss)
         
@@ -218,6 +217,10 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-5, save
                 "epoch": epoch,
                 "batch": batch_idx
             })
+
+            print("--------------------------------")
+            print(f"Batch {batch_idx} loss: {loss.item():.4f}")
+            print("--------------------------------")
         
         # Calculate and log epoch metrics
         epoch_loss = total_loss / num_batches

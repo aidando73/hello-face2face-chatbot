@@ -2,7 +2,7 @@ import torch
 from audio_encoder import AudioEncoder
 from load_qwen import load_qwen_model
 from mel_filter_bank_block import MelFilterBank
-
+import os
 class AudioQwenModel:
     def __init__(self):
         # Load Qwen model and tokenizer
@@ -25,7 +25,8 @@ class AudioQwenModel:
     def process_audio(self, audio_path: str) -> torch.Tensor:
         # Process audio through mel filter bank
         mel_spec = self.mel_filter.process_audio(audio_path)
-        print(f"Mel spec shape: {mel_spec.shape}")
+        if os.environ.get("DEBUG"):
+            print(f"Mel spec shape: {mel_spec.shape}")
         mel_spec = mel_spec.to(self.model.device)
         mel_spec = mel_spec.to(self.model.dtype)  # Convert to float16
         
