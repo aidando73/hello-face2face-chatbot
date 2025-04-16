@@ -47,8 +47,8 @@ class AudioEncoder(nn.Module):
             ("linear1", nn.Linear(hidden_dim, hidden_dim * 2)),
             ("layernorm1", nn.LayerNorm(hidden_dim * 2)),  # Add normalization after first linear
             ("gelu1", nn.GELU()),
-            ("layernorm2", nn.LayerNorm(hidden_dim)),
-            ("linear2", nn.Linear(hidden_dim, text_embed_dim)),
+            ("layernorm2", nn.LayerNorm(hidden_dim * 2)),
+            ("linear2", nn.Linear(hidden_dim * 2, text_embed_dim)),
             ("layernorm3", nn.LayerNorm(text_embed_dim))  # Add normalization to final output
         ]))
 
@@ -72,15 +72,17 @@ class AudioEncoder(nn.Module):
     def forward(self, x):
         # x shape: (batch_size, input_dim, seq_len)
 
-        print(f"Audio encoder pre CMVN - global mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
-        print(f"Channel means min/max: {x.mean(dim=2).min().item():.4f}/{x.mean(dim=2).max().item():.4f}")
-        print(f"Channel stds min/max: {x.std(dim=2).min().item():.4f}/{x.std(dim=2).max().item():.4f}")
+        if os.environ.get("DEBUG"):
+            print(f"Audio encoder pre CMVN - global mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
+            print(f"Channel means min/max: {x.mean(dim=2).min().item():.4f}/{x.mean(dim=2).max().item():.4f}")
+            print(f"Channel stds min/max: {x.std(dim=2).min().item():.4f}/{x.std(dim=2).max().item():.4f}")
 
         x = apply_local_cmvn(x)
 
-        print(f"Audio encoder post CMVN - global mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
-        print(f"Channel means min/max: {x.mean(dim=2).min().item():.4f}/{x.mean(dim=2).max().item():.4f}")
-        print(f"Channel stds min/max: {x.std(dim=2).min().item():.4f}/{x.std(dim=2).max().item():.4f}")
+        if os.environ.get("DEBUG"):
+            print(f"Audio encoder post CMVN - global mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
+            print(f"Channel means min/max: {x.mean(dim=2).min().item():.4f}/{x.mean(dim=2).max().item():.4f}")
+            print(f"Channel stds min/max: {x.std(dim=2).min().item():.4f}/{x.std(dim=2).max().item():.4f}")
 
         # Debug: Print input stats
         if os.environ.get("DEBUG"):
