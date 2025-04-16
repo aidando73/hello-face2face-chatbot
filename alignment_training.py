@@ -166,9 +166,13 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-9, save
     #                 nn.init.zeros_(m.bias)
             
     # Only optimize the audio encoder
-    optimizer = torch.optim.AdamW([
-        {'params': alignment_model.model.audio_encoder.connector[0].parameters()}
-    ], lr=learning_rate)
+    # optimizer = torch.optim.AdamW([
+    #     {'params': alignment_model.model.audio_encoder.connector[0].parameters()}
+    # ], lr=learning_rate)
+    optimizer = torch.optim.SGD([
+        {'params': alignment_model.model.audio_encoder.connector.parameters()}
+    ], lr=1e-6, momentum=0)
+
     
     # Training loop
     for epoch in range(num_epochs):
