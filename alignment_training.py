@@ -53,6 +53,9 @@ class AudioTextAlignment(nn.Module):
                 print("input_embeds.shape", input_embeds.shape)
                 print("labels.shape", labels.shape)
             
+            print(f"audio_emb mean: {audio_emb.mean().item():.4f}, std: {audio_emb.std().item():.4f}, min: {audio_emb.min().item():.4f}, max: {audio_emb.max().item():.4f}")
+            print(f"text_emb mean: {text_emb.mean().item():.4f}, std: {text_emb.std().item():.4f}, min: {text_emb.min().item():.4f}, max: {text_emb.max().item():.4f}")
+            
             # Generate text from audio embeddings
             outputs = self.model.model(
                 inputs_embeds=input_embeds,
@@ -118,7 +121,7 @@ class AudioTextAlignment(nn.Module):
         )
         print(f"Audio encoder loaded from {os.path.join(path, 'audio_encoder.pt')}")
 
-def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-7, save_dir='checkpoints'):
+def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-9, save_dir='checkpoints'):
     # Initialize wandb
     wandb.init(
         project="jarvis-social-iq-module",
@@ -210,7 +213,7 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-7, save
                         print(f"{name}: mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}")
             
             # Clip gradients
-            max_grad_norm = 0.1
+            max_grad_norm = 0.001
             if grad_norm > max_grad_norm:
                 torch.nn.utils.clip_grad_norm_(
                     alignment_model.model.audio_encoder.parameters(),
