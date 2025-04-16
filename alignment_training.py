@@ -199,13 +199,15 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-6, save
             loss.backward()
 
             # Print out gradient statistics
-            for name, param in alignment_model.model.audio_encoder.connector.named_parameters():
-                print(f"{name}: gradient - mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}, min={param.grad.min().item():.4f}, max={param.grad.max().item():.4f}")
+            if os.environ.get("DEBUG"):
+                print("\nGradient statistics:")
+                for name, param in alignment_model.model.audio_encoder.connector.named_parameters():
+                    print(f"{name}: gradient - mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}, min={param.grad.min().item():.4f}, max={param.grad.max().item():.4f}")
 
-            torch.nn.utils.clip_grad_norm_(
-                [p for name, p in alignment_model.model.audio_encoder.connector.named_parameters() if 'layernorm' in name.lower()], 
-                max_norm=0.1  # Very aggressive clipping for LayerNorm
-            )
+            # torch.nn.utils.clip_grad_norm_(
+            #     [p for name, p in alignment_model.model.audio_encoder.connector.named_parameters() if 'layernorm' in name.lower()], 
+            #     max_norm=0.1  # Very aggressive clipping for LayerNorm
+            # )
 
             # for n, p in alignment_model.model.audio_encoder.named_parameters():
             #     if p.requires_grad:
@@ -226,15 +228,15 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-6, save
                         print(f"{name}: mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}")
             
             # Clip gradients
-            max_grad_norm = 0.001
-            if grad_norm > max_grad_norm:
-                torch.nn.utils.clip_grad_norm_(
-                    alignment_model.model.audio_encoder.parameters(),
-                    max_grad_norm
-                )
-                grad_norm = max_grad_norm
-                if os.environ.get("DEBUG"):
-                    print(f"Gradients clipped from {grad_norm:.4f} to {max_grad_norm}")
+            # max_grad_norm = 0.001
+            # if grad_norm > max_grad_norm:
+            #     torch.nn.utils.clip_grad_norm_(
+            #         alignment_model.model.audio_encoder.parameters(),
+            #         max_grad_norm
+            #     )
+            #     grad_norm = max_grad_norm
+            #     if os.environ.get("DEBUG"):
+            #         print(f"Gradients clipped from {grad_norm:.4f} to {max_grad_norm}")
             
             # Log gradient norm
             wandb.log({
