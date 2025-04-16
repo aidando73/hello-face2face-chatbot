@@ -166,7 +166,7 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-6, save
     optimizer = torch.optim.SGD([
         {'params': alignment_model.model.audio_encoder.cnn_layers.parameters()},
         {'params': alignment_model.model.audio_encoder.connector.parameters()}
-    ], lr=learning_rate, momentum=0)
+    ], lr=learning_rate, momentum=0.5)
 
     
     # Training loop
