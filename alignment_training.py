@@ -23,7 +23,8 @@ class AudioTextAlignment(nn.Module):
             audio_emb = self.model.process_audio(audio_path)
             audio_emb = audio_emb.to(self.model.model.device).to(self.model.model.dtype)
             
-            print("audio_emb.shape", audio_emb.shape)
+            if os.environ.get("DEBUG"):
+                print("audio_emb.shape", audio_emb.shape)
 
             # Tokenize the target text (for loss computation)
             text_inputs = self.model.tokenizer(text_target, padding=True, return_tensors="pt")
@@ -37,8 +38,9 @@ class AudioTextAlignment(nn.Module):
             # Last position predicts EOS token
             labels[:, -1] = self.model.model.config.eos_token_id
 
-            print("input_embeds.shape", input_embeds.shape)
-            print("labels.shape", labels.shape)
+            if os.environ.get("DEBUG"):
+                print("input_embeds.shape", input_embeds.shape)
+                print("labels.shape", labels.shape)
             
             # Generate text from audio embeddings
             outputs = self.model.model(
@@ -48,9 +50,10 @@ class AudioTextAlignment(nn.Module):
                 # output_hidden_states=True,
             )
 
-            print("outputs.logits.shape", outputs.logits.shape)
-            # print("num hidden states", len(outputs.hidden_states))
-            # print("outputs.hidden_states shapes", [h.shape for h in outputs.hidden_states])
+            if os.environ.get("DEBUG"):
+                print("outputs.logits.shape", outputs.logits.shape)
+                # print("num hidden states", len(outputs.hidden_states))
+                # print("outputs.hidden_states shapes", [h.shape for h in outputs.hidden_states])
 
             # Decode the model's output logits to get the predicted tokens
             logits = outputs.logits
@@ -64,6 +67,7 @@ class AudioTextAlignment(nn.Module):
                 skip_special_tokens=True
             )
             
+
             print("\nSample prediction:")
             print(f"Target: {text_target}")
             print(f"Prediction: {predicted_text[0]}")
@@ -115,7 +119,7 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-5, save
             loss = alignment_model(audio_paths, text_prompts, text_targets)
             
             # Check for NaN loss
-            if torch.isnan(loss):
+            if os.environ.get("DEBUG") and torch.isnan(loss):
                 print("Warning: NaN loss detected!")
                 print("Audio paths:", audio_paths)
                 print("Text targets:", text_targets)
@@ -133,10 +137,11 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-5, save
             grad_norm = grad_norm ** 0.5
             
             # Print gradient statistics for each layer
-            print("\nGradient statistics per layer:")
-            for name, param in alignment_model.model.audio_encoder.named_parameters():
-                if param.grad is not None:
-                    print(f"{name}: mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}")
+            if os.environ.get("DEBUG"):
+                print("\nGradient statistics per layer:")
+                for name, param in alignment_model.model.audio_encoder.named_parameters():
+                    if param.grad is not None:
+                        print(f"{name}: mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}")
             
             # Clip gradients
             max_grad_norm = 1.0
@@ -146,7 +151,8 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-5, save
                     max_grad_norm
                 )
                 grad_norm = max_grad_norm
-                print(f"Gradients clipped from {grad_norm:.4f} to {max_grad_norm}")
+                if os.environ.get("DEBUG"):
+                    print(f"Gradients clipped from {grad_norm:.4f} to {max_grad_norm}")
             
             # Log gradient norm
             wandb.log({
@@ -156,7 +162,8 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-5, save
                 "batch": batch_idx
             })
             
-            print(f"Gradient norm: {grad_norm:.4f}")
+            if os.environ.get("DEBUG"):
+                print(f"Gradient norm: {grad_norm:.4f}")
             
             optimizer.step()
             
@@ -178,7 +185,8 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-5, save
             "epoch": epoch
         })
         
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}")
+        if os.environ.get("DEBUG"): 
+            print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}")
         
         # Save checkpoint every epoch
         alignment_model.save(os.path.join(save_dir, f'epoch_{epoch+1}'))
