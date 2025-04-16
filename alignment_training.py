@@ -144,6 +144,9 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-7, save
         param.requires_grad = False
     
     for param in alignment_model.model.audio_encoder.connector.parameters():
+        param.requires_grad = False
+    
+    for param in alignment_model.model.audio_encoder.connector[0].parameters():
         param.requires_grad = True
     
     # with torch.no_grad():
@@ -161,7 +164,7 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-7, save
             
     # Only optimize the audio encoder
     optimizer = torch.optim.AdamW([
-        {'params': alignment_model.model.audio_encoder.connector.parameters()}
+        {'params': alignment_model.model.audio_encoder.connector[0].parameters()}
     ], lr=learning_rate)
     
     # Training loop
