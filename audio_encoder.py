@@ -127,4 +127,4 @@ class AudioEncoder(nn.Module):
             print(f"Inf count: {torch.isinf(x).sum().item()}")
             x = torch.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
         
-        return x
+        return x * 0.1
