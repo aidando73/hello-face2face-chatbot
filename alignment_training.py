@@ -27,44 +27,24 @@ class AudioTextAlignment(nn.Module):
 
             # Tokenize the target text (for loss computation)
             text_inputs = self.model.tokenizer(text_target, padding=True, return_tensors="pt")
-            target_ids = text_inputs['input_ids'].long().to(self.model.model.device)
-            attention_mask = text_inputs['attention_mask'].to(self.model.model.device)
+            text_input_ids = text_inputs['input_ids'].long().to(self.model.model.device)
+            text_emb = self.model.model.get_input_embeddings()(text_input_ids)
             
-            # Get the sequence length from the target
-            seq_length = target_ids.shape[1]
-            
-            # Pad the audio embeddings to match the sequence length
-            if audio_emb.shape[1] < seq_length:
-                # Create padding tensor
-                padding = torch.zeros(
-                    audio_emb.shape[0], 
-                    seq_length - audio_emb.shape[1], 
-                    audio_emb.shape[2],
-                    device=audio_emb.device,
-                    dtype=audio_emb.dtype
-                )
-                # Concatenate padding
-                audio_emb = torch.cat([audio_emb, padding], dim=1)
-            else:
-                # If audio is longer, truncate it
-                audio_emb = audio_emb[:, :seq_length, :]
-            
-            # Create audio attention mask (1 for actual audio, 0 for padding)
-            audio_attention_mask = torch.ones(
-                (audio_emb.shape[0], audio_emb.shape[1]),
-                device=audio_emb.device,
-                dtype=torch.long
-            )
-            
-            # Print input statistics for debugging
-            # print(f"Audio embedding stats - mean: {audio_emb.mean().item():.4f}, std: {audio_emb.std().item():.4f}")
-            print("audio_emb.shape padded", audio_emb.shape)
+            input_embeds = torch.cat([audio_emb, text_emb], dim=1)
+            labels = torch.full((1, input_embeds.shape[1]), -100, device=self.model.model.device)
+            # Set labels for text positions only (shifted by 1 for next-token prediction)
+            labels[:, audio_emb.shape[1]:-1] = text_input_ids[:, 1:]
+            # Last position predicts EOS token
+            labels[:, -1] = self.model.model.config.eos_token_id
+
+            print("input_embeds.shape", input_embeds.shape)
+            print("labels.shape", labels.shape)
             
             # Generate text from audio embeddings
             outputs = self.model.model(
-                inputs_embeds=audio_emb,
-                attention_mask=audio_attention_mask,
-                labels=target_ids,
+                inputs_embeds=input_embeds,
+                labels=labels,
+                # attention_mask=audio_attention_mask,
                 # output_hidden_states=True,
             )
 
@@ -84,12 +64,8 @@ class AudioTextAlignment(nn.Module):
                 skip_special_tokens=True
             )
             
-            target_text = self.model.tokenizer.batch_decode(
-                target_ids,
-                skip_special_tokens=True
-            )
             print("\nSample prediction:")
-            print(f"Target: {target_text[0]}")
+            print(f"Target: {text_target}")
             print(f"Prediction: {predicted_text[0]}")
             print(f"Loss: {outputs.loss.item():.4f}")
             print("outputs.loss", outputs.loss)
