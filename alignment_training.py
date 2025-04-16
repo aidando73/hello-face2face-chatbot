@@ -281,7 +281,8 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-6, save
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}")
         
         # Save checkpoint every epoch
-        alignment_model.save(os.path.join(save_dir, f'epoch_{epoch+1}'))
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+        alignment_model.save(os.path.join(save_dir, timestamp, f'epoch_{epoch+1}'))
     
     wandb.finish()
     return alignment_model
