@@ -194,6 +194,15 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-9, save
             optimizer.zero_grad()
             loss.backward()
 
+            # Print out gradient statistics
+            for name, param in alignment_model.model.audio_encoder.connector.named_parameters():
+                print(f"{name}: gradient - mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}, min={param.grad.min().item():.4f}, max={param.grad.max().item():.4f}")
+
+            torch.nn.utils.clip_grad_norm_(
+                [p for name, p in alignment_model.model.audio_encoder.connector.named_parameters() if 'layernorm' in name.lower()], 
+                max_norm=0.1  # Very aggressive clipping for LayerNorm
+            )
+
             # for n, p in alignment_model.model.audio_encoder.named_parameters():
             #     if p.requires_grad:
             #         print(f"{n}: grad_exists={p.grad is not None}, grad_nan={torch.isnan(p.grad).any() if p.grad is not None else 'N/A'}")

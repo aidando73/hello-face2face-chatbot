@@ -40,7 +40,7 @@ class AudioEncoder(nn.Module):
         
         # Two-layer MLP connector for audio-text modality
         self.connector = nn.Sequential(OrderedDict([
-            ("layernorm1", nn.LayerNorm(hidden_dim)),
+            # ("layernorm1", nn.LayerNorm(hidden_dim, eps=1e-2)),
             ("linear1", nn.Linear(hidden_dim, text_embed_dim)),
         ]))
             # nn.Linear(hidden_dim, hidden_dim * 2),
