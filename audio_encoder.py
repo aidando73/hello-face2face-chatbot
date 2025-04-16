@@ -128,9 +128,12 @@ class AudioEncoder(nn.Module):
             x = torch.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
         
         # Apply modality connector
-        print(f"Pre-connector stats: min={x.min().item():.6f}, max={x.max().item():.6f}, mean={x.mean().item():.6f}")
+        if os.environ.get("DEBUG"):
+            print(f"Pre-connector stats: min={x.min().item():.6f}, max={x.max().item():.6f}, mean={x.mean().item():.6f}")
         x = self.connector(x)  # (batch_size, seq_len/16, text_embed_dim)
-        print(f"Post-connector stats: min={x.min().item():.6f}, max={x.max().item():.6f}, mean={x.mean().item():.6f}")
+
+        if os.environ.get("DEBUG"):
+            print(f"Post-connector stats: min={x.min().item():.6f}, max={x.max().item():.6f}, mean={x.mean().item():.6f}")
         
         # Debug: Print final output stats
         if os.environ.get("DEBUG"):
@@ -143,7 +146,7 @@ class AudioEncoder(nn.Module):
             print(f"Inf count: {torch.isinf(x).sum().item()}")
             x = torch.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
         
-        return x * 0.1
+        return x
 
 
 def apply_local_cmvn(features, epsilon=1e-8):
