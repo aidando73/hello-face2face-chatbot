@@ -75,14 +75,20 @@ class LibriSpeechDataset(Dataset):
             'text_target': row['text']
         }
 
-def create_dataloader(data_dir, subset='train-clean-100', batch_size=8, num_workers=4):
+def create_dataloader(data_dir, subset='train-clean-100', batch_size=8, num_workers=4, seed=None):
     dataset = LibriSpeechDataset(data_dir, subset)
+    
+    # Create a generator with the specified seed if provided
+    generator = torch.Generator()
+    if seed is not None:
+        generator.manual_seed(seed)
     
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
         num_workers=num_workers,
         shuffle=True,
+        generator=generator,
         collate_fn=lambda batch: {
             'audio_paths': [item['audio_path'] for item in batch],
             'text_prompts': [item['text_prompt'] for item in batch],

@@ -118,7 +118,7 @@ class AudioTextAlignment(nn.Module):
         )
         print(f"Audio encoder loaded from {os.path.join(path, 'audio_encoder.pt')}")
 
-def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-5, save_dir='checkpoints'):
+def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-6, save_dir='checkpoints'):
     # Initialize wandb
     wandb.init(
         project="jarvis-social-iq-module",
@@ -137,9 +137,18 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-5, save
     for param in alignment_model.model.model.parameters():
         param.requires_grad = False
     
+    for param in alignment_model.model.audio_encoder.cnn_layers.parameters():
+        param.requires_grad = False
+    
+    for param in alignment_model.model.audio_encoder.transformer.parameters():
+        param.requires_grad = False
+    
+    for param in alignment_model.model.audio_encoder.connector.parameters():
+        param.requires_grad = True
+    
     # Only optimize the audio encoder
     optimizer = torch.optim.AdamW([
-        {'params': alignment_model.model.audio_encoder.parameters()}
+        {'params': alignment_model.model.audio_encoder.connector.parameters()}
     ], lr=learning_rate)
     
     # Training loop
@@ -185,7 +194,7 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-5, save
                         print(f"{name}: mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}")
             
             # Clip gradients
-            max_grad_norm = 1.0
+            max_grad_norm = 0.5
             if grad_norm > max_grad_norm:
                 torch.nn.utils.clip_grad_norm_(
                     alignment_model.model.audio_encoder.parameters(),
