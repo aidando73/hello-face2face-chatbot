@@ -47,10 +47,11 @@ class AudioEncoder(nn.Module):
         # x shape: (batch_size, input_dim, seq_len)
         
         # Debug: Print input stats
-        print(f"Audio encoder input stats - mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
+        if os.environ.get("DEBUG"):
+            print(f"Audio encoder input stats - mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
         
         # Check for NaN or Inf values in input
-        if torch.isnan(x).any() or torch.isinf(x).any():
+        if os.environ.get("DEBUG") and (torch.isnan(x).any() or torch.isinf(x).any()):
             print("Warning: NaN or Inf values detected in audio encoder input!")
             print(f"NaN count: {torch.isnan(x).sum().item()}")
             print(f"Inf count: {torch.isinf(x).sum().item()}")
@@ -59,13 +60,15 @@ class AudioEncoder(nn.Module):
         # Apply CNN downsampling
         x = self.cnn_layers(x)  # (batch_size, hidden_dim, seq_len/16)
         
-        print("CNN output shape:", x.shape)
+        if os.environ.get("DEBUG"):
+            print("CNN output shape:", x.shape)
 
         # Debug: Print CNN output stats
-        print(f"CNN output stats - mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
+        if os.environ.get("DEBUG"):
+            print(f"CNN output stats - mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
         
         # Check for NaN or Inf values after CNN
-        if torch.isnan(x).any() or torch.isinf(x).any():
+        if os.environ.get("DEBUG") and (torch.isnan(x).any() or torch.isinf(x).any()):
             print("Warning: NaN or Inf values detected after CNN!")
             print(f"NaN count: {torch.isnan(x).sum().item()}")
             print(f"Inf count: {torch.isinf(x).sum().item()}")
@@ -78,10 +81,11 @@ class AudioEncoder(nn.Module):
         x = self.transformer(x)
         
         # Debug: Print transformer output stats
-        print(f"Transformer output stats - mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
+        if os.environ.get("DEBUG"):
+            print(f"Transformer output stats - mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
         
         # Check for NaN or Inf values after transformer
-        if torch.isnan(x).any() or torch.isinf(x).any():
+        if os.environ.get("DEBUG") and (torch.isnan(x).any() or torch.isinf(x).any()):
             print("Warning: NaN or Inf values detected after transformer!")
             print(f"NaN count: {torch.isnan(x).sum().item()}")
             print(f"Inf count: {torch.isinf(x).sum().item()}")
@@ -91,10 +95,11 @@ class AudioEncoder(nn.Module):
         x = self.connector(x)  # (batch_size, seq_len/16, text_embed_dim)
         
         # Debug: Print final output stats
-        print(f"Final output stats - mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
+        if os.environ.get("DEBUG"):
+            print(f"Final output stats - mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
         
         # Check for NaN or Inf values in final output
-        if torch.isnan(x).any() or torch.isinf(x).any():
+        if os.environ.get("DEBUG") and (torch.isnan(x).any() or torch.isinf(x).any()):
             print("Warning: NaN or Inf values detected in final output!")
             print(f"NaN count: {torch.isnan(x).sum().item()}")
             print(f"Inf count: {torch.isinf(x).sum().item()}")
