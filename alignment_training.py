@@ -64,11 +64,13 @@ class AudioTextAlignment(nn.Module):
             outputs = self.model.model(
                 inputs_embeds=audio_emb,
                 attention_mask=audio_attention_mask,
-                labels=target_ids
+                labels=target_ids,
+                # output_hidden_states=True,
             )
 
             print("outputs.logits.shape", outputs.logits.shape)
-            print("outputs.hidden_states.shape", outputs.hidden_states.shape)
+            # print("num hidden states", len(outputs.hidden_states))
+            # print("outputs.hidden_states shapes", [h.shape for h in outputs.hidden_states])
 
             # Decode the model's output logits to get the predicted tokens
             logits = outputs.logits
