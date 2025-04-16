@@ -23,9 +23,6 @@ class AudioTextAlignment(nn.Module):
             audio_emb = self.model.process_audio(audio_path)
             audio_emb = audio_emb.to(self.model.model.device).to(self.model.model.dtype)
             
-            # Scale the audio embeddings to have unit variance
-            # audio_emb = audio_emb / (audio_emb.std() + 1e-6)
-            
             print("audio_emb.shape", audio_emb.shape)
 
             # Tokenize the target text (for loss computation)
@@ -60,7 +57,8 @@ class AudioTextAlignment(nn.Module):
             )
             
             # Print input statistics for debugging
-            print(f"Audio embedding stats - mean: {audio_emb.mean().item():.4f}, std: {audio_emb.std().item():.4f}")
+            # print(f"Audio embedding stats - mean: {audio_emb.mean().item():.4f}, std: {audio_emb.std().item():.4f}")
+            print("audio_emb.shape padded", audio_emb.shape)
             
             # Generate text from audio embeddings
             outputs = self.model.model(
@@ -68,6 +66,9 @@ class AudioTextAlignment(nn.Module):
                 attention_mask=audio_attention_mask,
                 labels=target_ids
             )
+
+            print("outputs.logits.shape", outputs.logits.shape)
+            print("outputs.hidden_states.shape", outputs.hidden_states.shape)
 
             # Decode the model's output logits to get the predicted tokens
             logits = outputs.logits
