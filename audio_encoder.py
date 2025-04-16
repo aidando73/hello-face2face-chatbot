@@ -40,8 +40,10 @@ class AudioEncoder(nn.Module):
         # Two-layer MLP connector for audio-text modality
         self.connector = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim * 2),
+            nn.LayerNorm(hidden_dim * 2),  # Add normalization after first linear
             nn.GELU(),
-            nn.Linear(hidden_dim * 2, text_embed_dim)  # Project to language model's embedding dimension
+            nn.Linear(hidden_dim * 2, text_embed_dim),
+            nn.LayerNorm(text_embed_dim)  # Add normalization to final output
         )
         
     def forward(self, x):
@@ -93,7 +95,9 @@ class AudioEncoder(nn.Module):
             x = torch.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
         
         # Apply modality connector
+        print(f"Pre-connector stats: min={x.min().item():.6f}, max={x.max().item():.6f}, mean={x.mean().item():.6f}")
         x = self.connector(x)  # (batch_size, seq_len/16, text_embed_dim)
+        print(f"Post-connector stats: min={x.min().item():.6f}, max={x.max().item():.6f}, mean={x.mean().item():.6f}")
         
         # Debug: Print final output stats
         if os.environ.get("DEBUG"):
