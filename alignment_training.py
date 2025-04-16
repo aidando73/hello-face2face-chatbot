@@ -15,7 +15,7 @@ class AudioTextAlignment(nn.Module):
     def forward(self, audio_paths, text_prompts, text_targets):
         # Process each audio file separately
         losses = []
-        
+        if os.environ.get("DEBUG"):
         print("Model hidden size:", self.model.model.config.hidden_size)
         
         for audio_path, text_target in zip(audio_paths, text_targets):
@@ -96,6 +96,18 @@ class AudioTextAlignment(nn.Module):
         )
         
         print(f"Audio encoder saved to {os.path.join(path, 'audio_encoder.pt')}")
+    
+    def load(self, path):
+        """
+        Load the audio encoder model from the specified path.
+        
+        Args:
+            path (str): Directory path where the model will be loaded from
+        """
+        self.model.audio_encoder.load_state_dict(
+            torch.load(os.path.join(path, "audio_encoder.pt"))
+        )
+        print(f"Audio encoder loaded from {os.path.join(path, 'audio_encoder.pt')}")
 
 def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-5, save_dir='checkpoints'):
     # Initialize wandb
