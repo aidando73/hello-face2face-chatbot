@@ -14,6 +14,9 @@ source ~/miniconda3/bin/activate ./env
 python alignment_training.py
 
 python alignment_training.py | tee alignment_training.log
+
+
+python test_text_audio_alignment.py
 ```
 
 Pod usage begins at: 12 Apr 2025

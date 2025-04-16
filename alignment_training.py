@@ -18,16 +18,24 @@ class AudioTextAlignment(nn.Module):
         if os.environ.get("DEBUG"):
             print("Model hidden size:", self.model.model.config.hidden_size)
         
-        # if text_targets is None:
-        #     audio_emb = self.model.process_audio(audio_paths[0])
-        #     outputs = self.model.model(
-        #         inputs_embeds=audio_emb,
-        #     )
-        #     predicted_text = self.model.tokenizer.batch_decode(
-        #         outputs.logits.argmax(dim=-1), 
-        #         skip_special_tokens=True
-        #     )
-        #     return predicted_text
+        if text_targets is None:
+            audio_emb = self.model.process_audio(audio_paths[0])
+            
+            # Use generate method instead of just getting logits
+            outputs = self.model.model.generate(
+                inputs_embeds=audio_emb,
+                max_new_tokens=100,
+                do_sample=True,
+                temperature=0.7
+            )
+            
+            # Decode only the generated tokens
+            generated_text = self.model.tokenizer.decode(
+                outputs[0], 
+                skip_special_tokens=True
+            )
+            
+            return generated_text
         
         for audio_path, text_target in zip(audio_paths, text_targets):
             # Process audio using the model's existing functionality
@@ -53,8 +61,9 @@ class AudioTextAlignment(nn.Module):
                 print("input_embeds.shape", input_embeds.shape)
                 print("labels.shape", labels.shape)
             
-            print(f"audio_emb mean: {audio_emb.mean().item():.4f}, std: {audio_emb.std().item():.4f}, min: {audio_emb.min().item():.4f}, max: {audio_emb.max().item():.4f}")
-            print(f"text_emb mean: {text_emb.mean().item():.4f}, std: {text_emb.std().item():.4f}, min: {text_emb.min().item():.4f}, max: {text_emb.max().item():.4f}")
+            if os.environ.get("DEBUG"):
+                print(f"audio_emb mean: {audio_emb.mean().item():.4f}, std: {audio_emb.std().item():.4f}, min: {audio_emb.min().item():.4f}, max: {audio_emb.max().item():.4f}")
+                print(f"text_emb mean: {text_emb.mean().item():.4f}, std: {text_emb.std().item():.4f}, min: {text_emb.min().item():.4f}, max: {text_emb.max().item():.4f}")
 
             # Generate text from audio embeddings
             outputs = self.model.model(
