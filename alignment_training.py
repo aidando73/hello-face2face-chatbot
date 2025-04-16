@@ -43,7 +43,6 @@ class AudioTextAlignment(nn.Module):
             text_emb = self.model.model.get_input_embeddings()(text_input_ids)
             
             input_embeds = torch.cat([audio_emb, text_emb], dim=1)
-
             labels = torch.full((1, input_embeds.shape[1]), -100, device=self.model.model.device)
             # Set labels for text positions only (shifted by 1 for next-token prediction)
             labels[:, audio_emb.shape[1]:-1] = text_input_ids[:, 1:]
@@ -89,7 +88,7 @@ class AudioTextAlignment(nn.Module):
         
         # Average the losses
         avg_loss = torch.mean(torch.stack(losses))
-        return avg_loss, predicted_text
+        return avg_loss
     
     def save(self, path):
         """
@@ -167,6 +166,10 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-5, save
             # Backward pass
             optimizer.zero_grad()
             loss.backward()
+
+            # for n, p in alignment_model.model.audio_encoder.named_parameters():
+            #     if p.requires_grad:
+            #         print(f"{n}: grad_exists={p.grad is not None}, grad_nan={torch.isnan(p.grad).any() if p.grad is not None else 'N/A'}")
             
             # Calculate gradient norm
             grad_norm = 0.0
@@ -237,4 +240,4 @@ if __name__ == "__main__":
     model = AudioQwenModel()
     import dataset_loader
     train_loader = dataset_loader.create_dataloader(data_dir="data/librispeech/LibriSpeech/", subset='dev-clean')
-    train_alignment(model, train_loader) 
+    train_alignment(model, train_loader)
