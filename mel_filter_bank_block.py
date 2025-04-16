@@ -34,11 +34,13 @@ class MelFilterBank:
         
     def process_audio(self, audio_path: str) -> torch.Tensor:
         # Load audio file
-        print(f"Loading audio file: {audio_path}")
+        if os.environ.get("DEBUG"):
+            print(f"Loading audio file: {audio_path}")
         waveform, sample_rate = torchaudio.load(audio_path)
         
         # Debug: Print waveform stats
-        print(f"Waveform stats - mean: {waveform.mean().item():.4f}, std: {waveform.std().item():.4f}, min: {waveform.min().item():.4f}, max: {waveform.max().item():.4f}")
+        if os.environ.get("DEBUG"):
+            print(f"Waveform stats - mean: {waveform.mean().item():.4f}, std: {waveform.std().item():.4f}, min: {waveform.min().item():.4f}, max: {waveform.max().item():.4f}")
         
         # Resample if necessary
         if sample_rate != self.sample_rate:
@@ -50,19 +52,21 @@ class MelFilterBank:
             waveform = torch.mean(waveform, dim=0, keepdim=True)
         
         # Debug: Print resampled waveform stats
-        print(f"Resampled waveform stats - mean: {waveform.mean().item():.4f}, std: {waveform.std().item():.4f}, min: {waveform.min().item():.4f}, max: {waveform.max().item():.4f}")
+        if os.environ.get("DEBUG"):
+            print(f"Resampled waveform stats - mean: {waveform.mean().item():.4f}, std: {waveform.std().item():.4f}, min: {waveform.min().item():.4f}, max: {waveform.max().item():.4f}")
         
         # Compute mel spectrogram
         mel_spec = self.mel_spectrogram(waveform)
         
         # Debug: Print raw mel spectrogram stats
-        print(f"Raw mel spectrogram stats - mean: {mel_spec.mean().item():.4f}, std: {mel_spec.std().item():.4f}, min: {mel_spec.min().item():.4f}, max: {mel_spec.max().item():.4f}")
+        if os.environ.get("DEBUG"):
+            print(f"Raw mel spectrogram stats - mean: {mel_spec.mean().item():.4f}, std: {mel_spec.std().item():.4f}, min: {mel_spec.min().item():.4f}, max: {mel_spec.max().item():.4f}")
         
         # Add small epsilon to prevent log(0)
         mel_spec = mel_spec + 1e-6
         
         # Check for NaN or Inf values
-        if torch.isnan(mel_spec).any() or torch.isinf(mel_spec).any():
+        if os.environ.get("DEBUG") and (torch.isnan(mel_spec).any() or torch.isinf(mel_spec).any()):
             print("Warning: NaN or Inf values detected in mel spectrogram!")
             print(f"NaN count: {torch.isnan(mel_spec).sum().item()}")
             print(f"Inf count: {torch.isinf(mel_spec).sum().item()}")
@@ -73,7 +77,8 @@ class MelFilterBank:
         mel_spec = torch.log(mel_spec)
         
         # Debug: Print log mel spectrogram stats
-        print(f"Log mel spectrogram stats - mean: {mel_spec.mean().item():.4f}, std: {mel_spec.std().item():.4f}, min: {mel_spec.min().item():.4f}, max: {mel_spec.max().item():.4f}")
+        if os.environ.get("DEBUG"):
+            print(f"Log mel spectrogram stats - mean: {mel_spec.mean().item():.4f}, std: {mel_spec.std().item():.4f}, min: {mel_spec.min().item():.4f}, max: {mel_spec.max().item():.4f}")
         
         # Check for NaN or Inf values after log
         if torch.isnan(mel_spec).any() or torch.isinf(mel_spec).any():
@@ -87,7 +92,8 @@ class MelFilterBank:
         mel_spec = (mel_spec - mel_spec.mean()) / (mel_spec.std() + 1e-6)
         
         # Final debug print
-        print(f"Final mel spectrogram stats - mean: {mel_spec.mean().item():.4f}, std: {mel_spec.std().item():.4f}, min: {mel_spec.min().item():.4f}, max: {mel_spec.max().item():.4f}")
+        if os.environ.get("DEBUG"):
+            print(f"Final mel spectrogram stats - mean: {mel_spec.mean().item():.4f}, std: {mel_spec.std().item():.4f}, min: {mel_spec.min().item():.4f}, max: {mel_spec.max().item():.4f}")
         
         return mel_spec
     
@@ -114,12 +120,13 @@ def main():
     mel_spec = mel_filter.process_audio('audio-sample.wav')
     
     # Print mel spectrogram information
-    print("\nMel Spectrogram:")
-    print(f"Shape: {mel_spec.shape}")
-    print(f"Mean: {mel_spec.mean():.4f}")
-    print(f"Std: {mel_spec.std():.4f}")
-    print(f"Min: {mel_spec.min():.4f}")
-    print(f"Max: {mel_spec.max():.4f}")
+    if os.environ.get("DEBUG"): 
+        print("\nMel Spectrogram:")
+        print(f"Shape: {mel_spec.shape}")
+        print(f"Mean: {mel_spec.mean():.4f}")
+        print(f"Std: {mel_spec.std():.4f}")
+        print(f"Min: {mel_spec.min():.4f}")
+        print(f"Max: {mel_spec.max():.4f}")
     
     # Visualize mel spectrogram
     mel_filter.visualize(mel_spec, 'mel_spectrogram.png')
@@ -136,12 +143,13 @@ def main():
     encoded_audio = audio_encoder(mel_spec)
     
     # Print encoded audio information
-    print("\nEncoded Audio:")
-    print(f"Shape: {encoded_audio.shape}")
-    print(f"Mean: {encoded_audio.mean():.4f}")
-    print(f"Std: {encoded_audio.std():.4f}")
-    print(f"Min: {encoded_audio.min():.4f}")
-    print(f"Max: {encoded_audio.max():.4f}")
+    if os.environ.get("DEBUG"): 
+        print("\nEncoded Audio:")
+        print(f"Shape: {encoded_audio.shape}")
+        print(f"Mean: {encoded_audio.mean():.4f}")
+        print(f"Std: {encoded_audio.std():.4f}")
+        print(f"Min: {encoded_audio.min():.4f}")
+        print(f"Max: {encoded_audio.max():.4f}")
     
     return mel_spec, encoded_audio
 
