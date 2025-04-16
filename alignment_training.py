@@ -12,11 +12,22 @@ class AudioTextAlignment(nn.Module):
         super().__init__()
         self.model = model
         
-    def forward(self, audio_paths, text_prompts, text_targets):
+    def forward(self, audio_paths, text_targets = None):
         # Process each audio file separately
         losses = []
         if os.environ.get("DEBUG"):
-        print("Model hidden size:", self.model.model.config.hidden_size)
+            print("Model hidden size:", self.model.model.config.hidden_size)
+        
+        if text_targets is None:
+            audio_emb = self.model.process_audio(audio_paths[0])
+            outputs = self.model.model(
+                inputs_embeds=audio_emb,
+            )
+            predicted_text = self.model.tokenizer.batch_decode(
+                outputs.logits.argmax(dim=-1), 
+                skip_special_tokens=True
+            )
+            return predicted_text
         
         for audio_path, text_target in zip(audio_paths, text_targets):
             # Process audio using the model's existing functionality
@@ -32,6 +43,7 @@ class AudioTextAlignment(nn.Module):
             text_emb = self.model.model.get_input_embeddings()(text_input_ids)
             
             input_embeds = torch.cat([audio_emb, text_emb], dim=1)
+
             labels = torch.full((1, input_embeds.shape[1]), -100, device=self.model.model.device)
             # Set labels for text positions only (shifted by 1 for next-token prediction)
             labels[:, audio_emb.shape[1]:-1] = text_input_ids[:, 1:]
@@ -66,7 +78,6 @@ class AudioTextAlignment(nn.Module):
                 predicted_token_ids, 
                 skip_special_tokens=True
             )
-            
 
             print("\nSample prediction:")
             print(f"Target: {text_target}")
@@ -78,7 +89,7 @@ class AudioTextAlignment(nn.Module):
         
         # Average the losses
         avg_loss = torch.mean(torch.stack(losses))
-        return avg_loss
+        return avg_loss, predicted_text
     
     def save(self, path):
         """
@@ -141,11 +152,10 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-5, save
         for batch_idx, batch in tqdm(enumerate(train_loader), desc=f"Batches (Epoch {epoch+1}/{num_epochs})", total=len(train_loader)):
             # Extract paths and targets from batch
             audio_paths = batch['audio_paths']
-            text_prompts = batch['text_prompts']
             text_targets = batch['text_targets']
             
             # Forward pass
-            loss = alignment_model(audio_paths, text_prompts, text_targets)
+            loss = alignment_model(audio_paths, text_targets)
             
             # Check for NaN loss
             if os.environ.get("DEBUG") and torch.isnan(loss):
@@ -225,8 +235,6 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-5, save
 if __name__ == "__main__":
     # Example usage
     model = AudioQwenModel()
-    # You would need to create a DataLoader with your audio-text pairs
-    # train_loader = create_your_dataloader
     import dataset_loader
     train_loader = dataset_loader.create_dataloader(data_dir="data/librispeech/LibriSpeech/", subset='dev-clean')
     train_alignment(model, train_loader) 
