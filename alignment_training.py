@@ -194,7 +194,7 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-7, save
                         print(f"{name}: mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}")
             
             # Clip gradients
-            max_grad_norm = 0.5
+            max_grad_norm = 0.1
             if grad_norm > max_grad_norm:
                 torch.nn.utils.clip_grad_norm_(
                     alignment_model.model.audio_encoder.parameters(),
