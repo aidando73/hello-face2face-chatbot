@@ -79,6 +79,23 @@ class AudioTextAlignment(nn.Module):
         # Average the losses
         avg_loss = torch.mean(torch.stack(losses))
         return avg_loss
+    
+    def save(self, path):
+        """
+        Save the audio encoder model to the specified path.
+        
+        Args:
+            path (str): Directory path where the model will be saved
+        """
+        os.makedirs(path, exist_ok=True)
+        
+        # Save only the audio encoder state dict
+        torch.save(
+            self.model.audio_encoder.state_dict(),
+            os.path.join(path, "audio_encoder.pt")
+        )
+        
+        print(f"Audio encoder saved to {os.path.join(path, 'audio_encoder.pt')}")
 
 def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-5, save_dir='checkpoints'):
     # Initialize wandb
