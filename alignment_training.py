@@ -153,7 +153,7 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-6, save
         param.requires_grad = True
     
     for param in alignment_model.model.audio_encoder.transformer.parameters():
-        param.requires_grad = False
+        param.requires_grad = True
     
     for param in alignment_model.model.audio_encoder.connector.parameters():
         param.requires_grad = True
@@ -165,7 +165,8 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-6, save
     # ], lr=learning_rate)
     optimizer = torch.optim.SGD([
         {'params': alignment_model.model.audio_encoder.cnn_layers.parameters()},
-        {'params': alignment_model.model.audio_encoder.connector.parameters()}
+        {'params': alignment_model.model.audio_encoder.connector.parameters()},
+        {'params': alignment_model.model.audio_encoder.transformer.parameters()}
     ], lr=learning_rate, momentum=0.5)
 
     
