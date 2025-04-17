@@ -77,7 +77,7 @@ class AudioEncoder(nn.Module):
             print(f"Channel means min/max: {x.mean(dim=2).min().item():.4f}/{x.mean(dim=2).max().item():.4f}")
             print(f"Channel stds min/max: {x.std(dim=2).min().item():.4f}/{x.std(dim=2).max().item():.4f}")
 
-        # x = apply_local_cmvn(x)
+        x = apply_local_cmvn(x)
 
         if os.environ.get("DEBUG"):
             print(f"Audio encoder post CMVN - global mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
@@ -148,7 +148,7 @@ class AudioEncoder(nn.Module):
             print(f"Inf count: {torch.isinf(x).sum().item()}")
             x = torch.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
         
-        return x
+        return x * 0.0153
 
 
 def apply_local_cmvn(features, epsilon=1e-8):
