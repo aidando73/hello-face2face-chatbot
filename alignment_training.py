@@ -208,21 +208,14 @@ def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-6, save_
                 for name, param in alignment_model.model.audio_encoder.connector.named_parameters():
                     print(f"{name}: gradient - mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}, min={param.grad.min().item():.4f}, max={param.grad.max().item():.4f}")
 
-            # torch.nn.utils.clip_grad_norm_(
-            #     [p for name, p in alignment_model.model.audio_encoder.connector.named_parameters() if 'layernorm' in name.lower()], 
-            #     max_norm=0.1  # Very aggressive clipping for LayerNorm
-            # )
 
-            # for n, p in alignment_model.model.audio_encoder.named_parameters():
-            #     if p.requires_grad:
-            #         print(f"{n}: grad_exists={p.grad is not None}, grad_nan={torch.isnan(p.grad).any() if p.grad is not None else 'N/A'}")
-            
+
             # Calculate gradient norm
-            grad_norm = 0.0
+            pre_clipped_grad_norm = 0.0
             for p in alignment_model.model.audio_encoder.parameters():
                 if p.grad is not None:
-                    grad_norm += p.grad.data.norm(2).item() ** 2
-            grad_norm = grad_norm ** 0.5
+                    pre_clipped_grad_norm += p.grad.data.norm(2).item() ** 2
+            pre_clipped_grad_norm = pre_clipped_grad_norm ** 0.5
             
             # Print gradient statistics for each layer
             if os.environ.get("DEBUG"):
@@ -231,6 +224,17 @@ def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-6, save_
                     if param.grad is not None:
                         print(f"{name}: mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}")
             
+            torch.nn.utils.clip_grad_norm_(
+                [p for name, p in alignment_model.model.audio_encoder.named_parameters()], 
+                max_norm=1
+            )
+
+            post_clipped_grad_norm = 0.0
+            for p in alignment_model.model.audio_encoder.parameters():
+                if p.grad is not None:
+                    post_clipped_grad_norm += p.grad.data.norm(2).item() ** 2
+            post_clipped_grad_norm = post_clipped_grad_norm ** 0.5
+
             # Clip gradients
             # max_grad_norm = 0.001
             # if grad_norm > max_grad_norm:
@@ -245,14 +249,14 @@ def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-6, save_
             # Log gradient norm
             wandb.log({
                 "batch_loss": loss.item(),
-                "grad_norm": grad_norm,
+                "pre_clipped_grad_norm": pre_clipped_grad_norm,
+                "post_clipped_grad_norm": post_clipped_grad_norm,
                 "epoch": epoch,
                 "batch": batch_idx
             })
             
             if os.environ.get("DEBUG"):
-                print(f"Gradient norm: {grad_norm:.4f}")
-            
+                print(f"Gradient norm: {pre_clipped_grad_norm:.4f}")
                 print("\nConnector model parameters - before step:")
                 for name, param in alignment_model.model.audio_encoder.connector.named_parameters():
                     print(f"{name}: shape={param.shape}, mean={param.data.mean().item():.6f}, std={param.data.std().item():.6f}, min={param.data.min().item():.6f}, max={param.data.max().item():.6f}")
