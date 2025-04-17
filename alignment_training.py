@@ -257,7 +257,6 @@ def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-6, save
             
             if os.environ.get("DEBUG"):
                 print(f"Gradient norm: {pre_clipped_grad_norm:.4f}")
-            
                 print("\nConnector model parameters - before step:")
                 for name, param in alignment_model.model.audio_encoder.connector.named_parameters():
                     print(f"{name}: shape={param.shape}, mean={param.data.mean().item():.6f}, std={param.data.std().item():.6f}, min={param.data.min().item():.6f}, max={param.data.max().item():.6f}")
