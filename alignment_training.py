@@ -62,7 +62,7 @@ class AudioTextAlignment(nn.Module):
                 print("input_embeds.shape", input_embeds.shape)
                 print("labels.shape", labels.shape)
             
-            if os.environ.get("DEBUG"):
+            if True or os.environ.get("DEBUG"):
                 print(f"audio_emb mean: {audio_emb.mean().item():.4f}, std: {audio_emb.std().item():.4f}, min: {audio_emb.min().item():.4f}, max: {audio_emb.max().item():.4f}")
                 print(f"text_emb mean: {text_emb.mean().item():.4f}, std: {text_emb.std().item():.4f}, min: {text_emb.min().item():.4f}, max: {text_emb.max().item():.4f}")
 
@@ -131,7 +131,7 @@ class AudioTextAlignment(nn.Module):
         )
         print(f"Audio encoder loaded from {os.path.join(path, 'audio_encoder.pt')}")
 
-def train_alignment(model, train_loader, num_epochs=10, learning_rate=1e-6, save_dir='checkpoints'):
+def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-6, save_dir='checkpoints'):
     # Initialize wandb
     wandb.init(
         project="jarvis-social-iq-module",
