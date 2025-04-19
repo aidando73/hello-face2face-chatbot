@@ -16,6 +16,10 @@ class AudioEncoder(nn.Module):
             nn.Conv2d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=3, stride=2),
             nn.ReLU(),
         )
+
+        self.intermediate_size = hidden_dim * (((input_dim - 1) // 2 - 1) // 2)
+        print("intermediate_size", self.intermediate_size)
+        self.out = nn.Linear(self.intermediate_size, hidden_dim)
         
         # Transformer layers
         encoder_layer = nn.TransformerEncoderLayer(
@@ -73,10 +77,13 @@ class AudioEncoder(nn.Module):
         print(f"Audio encoder input shape after transpose: {x.shape}")
         x = self.cnn_layers(x)
 
+        x = x.transpose(1, 2)
+        b, t, h, m = x.size()
+        x = x.contiguous().view(b, t, h * m)
+        x = self.out(x)
+
         if True or os.environ.get("DEBUG"):
             print("CNN output shape:", x.shape)
-
-        
 
         # Debug: Print CNN output stats
         if os.environ.get("DEBUG"):
