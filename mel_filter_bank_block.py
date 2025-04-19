@@ -41,6 +41,8 @@ class MelFilterBank:
         if os.environ.get("DEBUG"):
             print(f"Resampled waveform stats - mean: {waveform.mean().item():.4f}, std: {waveform.std().item():.4f}, min: {waveform.min().item():.4f}, max: {waveform.max().item():.4f}")
         
+        
+        waveform = waveform * (2**15) # Kaldi compliance: 16-bit signed integers
         # Compute mel spectrogram
         mel_spec = ta_kaldi.fbank(
             waveform,
