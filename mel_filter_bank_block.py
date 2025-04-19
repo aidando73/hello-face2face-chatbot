@@ -279,6 +279,7 @@ class MelFilterBank:
         mel_spec = mel_spec * cmvn_stds_tensor
         
         return mel_spec
+
 def main():
     # Initialize mel filter bank
     mel_filter = MelFilterBank()
