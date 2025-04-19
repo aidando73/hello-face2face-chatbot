@@ -10,21 +10,11 @@ class AudioEncoder(nn.Module):
         
         # CNN downsampling layers
         self.cnn_layers = nn.Sequential(
-            nn.Conv1d(input_dim, hidden_dim, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm1d(hidden_dim),
-            nn.GELU(),
+            nn.Conv2d(in_channels=1, out_channels=hidden_dim, kernel_size=3, stride=2),
+            nn.ReLU(),
             
-            nn.Conv1d(hidden_dim, hidden_dim, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm1d(hidden_dim),
-            nn.GELU(),
-            
-            nn.Conv1d(hidden_dim, hidden_dim, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm1d(hidden_dim),
-            nn.GELU(),
-            
-            nn.Conv1d(hidden_dim, hidden_dim, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm1d(hidden_dim),
-            nn.GELU(),
+            nn.Conv2d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=3, stride=2),
+            nn.ReLU(),
         )
         
         # Transformer layers
@@ -71,6 +61,7 @@ class AudioEncoder(nn.Module):
         
     def forward(self, x):
         # x shape: (batch_size, input_dim, seq_len)
+        print(f"Audio encoder input shape: {x.shape}")
 
         if os.environ.get("DEBUG"):
             print(f"Audio encoder pre CMVN - global mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
@@ -98,7 +89,7 @@ class AudioEncoder(nn.Module):
         # Apply CNN downsampling
         x = self.cnn_layers(x)  # (batch_size, hidden_dim, seq_len/16)
         
-        if os.environ.get("DEBUG"):
+        if True or os.environ.get("DEBUG"):
             print("CNN output shape:", x.shape)
 
         # Debug: Print CNN output stats
@@ -167,3 +158,11 @@ def apply_local_cmvn(features, epsilon=1e-8):
     
     # Normalize
     return (features - mean) / std
+
+
+if __name__ == "__main__":
+    audio_encoder = AudioEncoder()
+
+    x = torch.randn(1, 80, 1000)
+    x = audio_encoder(x)
+    print(f"Audio encoder output shape: {x.shape}")
