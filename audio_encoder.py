@@ -87,8 +87,11 @@ class AudioEncoder(nn.Module):
             x = torch.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
         
         # Apply CNN downsampling
+        x = x.transpose(1, 2)
+        x = x.unsqueeze(1)
+        print(f"Audio encoder input shape after transpose: {x.shape}")
         x = self.cnn_layers(x)  # (batch_size, hidden_dim, seq_len/16)
-        
+
         if True or os.environ.get("DEBUG"):
             print("CNN output shape:", x.shape)
 
@@ -163,6 +166,6 @@ def apply_local_cmvn(features, epsilon=1e-8):
 if __name__ == "__main__":
     audio_encoder = AudioEncoder()
 
-    x = torch.randn(1, 80, 1000)
+    x = torch.randn(1, 80, 1037)
     x = audio_encoder(x)
     print(f"Audio encoder output shape: {x.shape}")
