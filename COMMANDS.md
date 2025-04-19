@@ -20,6 +20,8 @@ python alignment_training.py | tee alignment_training.log
 
 
 python test_text_audio_alignment.py
+# Test mel_filter_bank block
+python mel_filter_bank_block.py
 ```
 
 Pod usage begins at: 12 Apr 2025
