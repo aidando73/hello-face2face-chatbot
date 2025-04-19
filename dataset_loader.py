@@ -75,7 +75,7 @@ class LibriSpeechDataset(Dataset):
             'text_target': row['text']
         }
 
-def create_dataloader(data_dir, subset='train-clean-100', batch_size=8, num_workers=4, seed=None):
+def create_dataloader(data_dir, subset='train-clean-100', batch_size=32, num_workers=4, seed=None):
     dataset = LibriSpeechDataset(data_dir, subset)
     
     # Create a generator with the specified seed if provided
