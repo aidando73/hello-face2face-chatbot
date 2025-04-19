@@ -131,7 +131,7 @@ class AudioTextAlignment(nn.Module):
         )
         print(f"Audio encoder loaded from {os.path.join(path, 'audio_encoder.pt')}")
 
-def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-6, save_dir='checkpoints'):
+def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-5, save_dir='checkpoints'):
     # Initialize wandb
     wandb.init(
         project="jarvis-social-iq-module",
