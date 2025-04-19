@@ -171,12 +171,12 @@ def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-6, save_
         {'params': alignment_model.model.audio_encoder.transformer.parameters()}
     ], lr=learning_rate, momentum=0.5)
 
-    # Add cosine annealing scheduler
-    scheduler = CosineAnnealingLR(
-        optimizer, 
-        T_max=num_epochs,
-        eta_min=learning_rate / 10
-    )
+    # # Add cosine annealing scheduler
+    # scheduler = CosineAnnealingLR(
+    #     optimizer, 
+    #     T_max=num_epochs,
+    #     eta_min=learning_rate / 10
+    # )
     
     # Training loop
     for epoch in range(num_epochs):
@@ -277,7 +277,7 @@ def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-6, save_
                 "batch_loss": loss.item(),
                 "epoch": epoch,
                 "batch": batch_idx,
-                "learning_rate": scheduler.get_last_lr()[0]
+                # "learning_rate": scheduler.get_last_lr()[0]
             })
 
             print("--------------------------------")
@@ -290,13 +290,13 @@ def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-6, save_
         wandb.log({
             "epoch_loss": epoch_loss,
             "epoch": epoch,
-            "learning_rate": scheduler.get_last_lr()[0]
+            # "learning_rate": scheduler.get_last_lr()[0]
         })
         
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}, LR: {scheduler.get_last_lr()[0]:.8f}")
         
         # Step the scheduler at the end of each epoch
-        scheduler.step()
+        # scheduler.step()
         
         # Save checkpoint every epoch
         timestamp = datetime.now().strftime('%Y%m%d_%H%M')
