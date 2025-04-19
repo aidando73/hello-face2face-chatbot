@@ -293,7 +293,8 @@ def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-5, save_
             # "learning_rate": scheduler.get_last_lr()[0]
         })
         
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}, LR: {scheduler.get_last_lr()[0]:.8f}")
+        # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}, LR: {scheduler.get_last_lr()[0]:.8f}")
+        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}")
         
         # Step the scheduler at the end of each epoch
         # scheduler.step()
