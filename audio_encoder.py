@@ -63,37 +63,20 @@ class AudioEncoder(nn.Module):
         # x shape: (batch_size, input_dim, seq_len)
         print(f"Audio encoder input shape: {x.shape}")
 
-        if os.environ.get("DEBUG"):
-            print(f"Audio encoder pre CMVN - global mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
-            print(f"Channel means min/max: {x.mean(dim=2).min().item():.4f}/{x.mean(dim=2).max().item():.4f}")
-            print(f"Channel stds min/max: {x.std(dim=2).min().item():.4f}/{x.std(dim=2).max().item():.4f}")
-
-        # x = apply_local_cmvn(x)
-
-        if os.environ.get("DEBUG"):
-            print(f"Audio encoder post CMVN - global mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
-            print(f"Channel means min/max: {x.mean(dim=2).min().item():.4f}/{x.mean(dim=2).max().item():.4f}")
-            print(f"Channel stds min/max: {x.std(dim=2).min().item():.4f}/{x.std(dim=2).max().item():.4f}")
-
         # Debug: Print input stats
         if os.environ.get("DEBUG"):
             print(f"Audio encoder input stats - mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
-        
-        # Check for NaN or Inf values in input
-        if os.environ.get("DEBUG") and (torch.isnan(x).any() or torch.isinf(x).any()):
-            print("Warning: NaN or Inf values detected in audio encoder input!")
-            print(f"NaN count: {torch.isnan(x).sum().item()}")
-            print(f"Inf count: {torch.isinf(x).sum().item()}")
-            x = torch.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
-        
+
         # Apply CNN downsampling
         x = x.transpose(1, 2)
         x = x.unsqueeze(1)
         print(f"Audio encoder input shape after transpose: {x.shape}")
-        x = self.cnn_layers(x)  # (batch_size, hidden_dim, seq_len/16)
+        x = self.cnn_layers(x)
 
         if True or os.environ.get("DEBUG"):
             print("CNN output shape:", x.shape)
+
+        
 
         # Debug: Print CNN output stats
         if os.environ.get("DEBUG"):
