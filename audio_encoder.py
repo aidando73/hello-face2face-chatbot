@@ -85,37 +85,13 @@ class AudioEncoder(nn.Module):
         if True or os.environ.get("DEBUG"):
             print("CNN output shape:", x.shape)
 
-        # Debug: Print CNN output stats
-        if os.environ.get("DEBUG"):
-            print(f"CNN output stats - mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
-        
-        # Check for NaN or Inf values after CNN
-        if os.environ.get("DEBUG") and (torch.isnan(x).any() or torch.isinf(x).any()):
-            print("Warning: NaN or Inf values detected after CNN!")
-            print(f"NaN count: {torch.isnan(x).sum().item()}")
-            print(f"Inf count: {torch.isinf(x).sum().item()}")
-            x = torch.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
-        
-        # Reshape for transformer
-        x = x.permute(0, 2, 1)  # (batch_size, seq_len/16, hidden_dim)
-        
         # Apply transformer
         x = self.transformer(x)
-        
-        # Debug: Print transformer output stats
-        if os.environ.get("DEBUG"):
-            print(f"Transformer output stats - mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
-        
-        # Check for NaN or Inf values after transformer
-        if os.environ.get("DEBUG") and (torch.isnan(x).any() or torch.isinf(x).any()):
-            print("Warning: NaN or Inf values detected after transformer!")
-            print(f"NaN count: {torch.isnan(x).sum().item()}")
-            print(f"Inf count: {torch.isinf(x).sum().item()}")
-            x = torch.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
         
         # Apply modality connector
         if os.environ.get("DEBUG"):
             print(f"Pre-connector stats: min={x.min().item():.6f}, max={x.max().item():.6f}, mean={x.mean().item():.6f}")
+
         x = self.connector(x)  # (batch_size, seq_len/16, text_embed_dim)
 
         if os.environ.get("DEBUG"):
