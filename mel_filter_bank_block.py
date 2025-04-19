@@ -35,6 +35,7 @@ class MelFilterBank:
         # Convert to mono if stereo
         if waveform.shape[0] > 1:
             waveform = torch.mean(waveform, dim=0, keepdim=True)
+            print(f"Converted to mono: {waveform.shape}")
         
         # Debug: Print resampled waveform stats
         if os.environ.get("DEBUG"):
@@ -53,50 +54,10 @@ class MelFilterBank:
 
         # Transpose the mel spectrogram to match the expected shape [1, 80, T]
         # Current shape is [T, 80], where T is the time dimension (1037 in this example)
-        mel_spec = mel_spec.transpose(0, 1).unsqueeze(0)
-        
+        mel_spec = mel_spec.transpose(0, 1)
+        mel_spec = mel_spec.unsqueeze(0)
         print(f"Mel spec shape: {mel_spec.shape}")
-        if os.environ.get("DEBUG"):
-            print(f"Transposed mel spec shape: {mel_spec.shape}")
 
-        
-        # Debug: Print raw mel spectrogram stats
-        if os.environ.get("DEBUG"):
-            print(f"Raw mel spectrogram stats - mean: {mel_spec.mean().item():.4f}, std: {mel_spec.std().item():.4f}, min: {mel_spec.min().item():.4f}, max: {mel_spec.max().item():.4f}")
-        
-        # Add small epsilon to prevent log(0)
-        mel_spec = mel_spec + 1e-6
-        
-        # Check for NaN or Inf values
-        if os.environ.get("DEBUG") and (torch.isnan(mel_spec).any() or torch.isinf(mel_spec).any()):
-            print("Warning: NaN or Inf values detected in mel spectrogram!")
-            print(f"NaN count: {torch.isnan(mel_spec).sum().item()}")
-            print(f"Inf count: {torch.isinf(mel_spec).sum().item()}")
-            # Replace NaN and Inf with small values
-            mel_spec = torch.nan_to_num(mel_spec, nan=1e-6, posinf=1e6, neginf=-1e6)
-        
-        # Convert to log scale with numerical stability
-        mel_spec = torch.log(mel_spec)
-        
-        # Debug: Print log mel spectrogram stats
-        if os.environ.get("DEBUG"):
-            print(f"Log mel spectrogram stats - mean: {mel_spec.mean().item():.4f}, std: {mel_spec.std().item():.4f}, min: {mel_spec.min().item():.4f}, max: {mel_spec.max().item():.4f}")
-        
-        # Check for NaN or Inf values after log
-        if torch.isnan(mel_spec).any() or torch.isinf(mel_spec).any():
-            print("Warning: NaN or Inf values detected after log transform!")
-            print(f"NaN count: {torch.isnan(mel_spec).sum().item()}")
-            print(f"Inf count: {torch.isinf(mel_spec).sum().item()}")
-            # Replace NaN and Inf with small values
-            mel_spec = torch.nan_to_num(mel_spec, nan=-10.0, posinf=10.0, neginf=-10.0)
-        
-        # Normalize to have zero mean and unit variance
-        mel_spec = (mel_spec - mel_spec.mean()) / (mel_spec.std() + 1e-6)
-        
-        # Final debug print
-        if os.environ.get("DEBUG"):
-            print(f"Final mel spectrogram stats - mean: {mel_spec.mean().item():.4f}, std: {mel_spec.std().item():.4f}, min: {mel_spec.min().item():.4f}, max: {mel_spec.max().item():.4f}")
-        
         return mel_spec
     
     def visualize(self, mel_spec: torch.Tensor, save_path: str = None):
@@ -109,6 +70,7 @@ class MelFilterBank:
         plt.title('Mel Spectrogram')
         plt.xlabel('Time')
         plt.ylabel('Mel Frequency')
+        plt.tight_layout()
         
         if save_path:
             plt.savefig(save_path)
