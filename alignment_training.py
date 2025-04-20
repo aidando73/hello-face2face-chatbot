@@ -166,6 +166,8 @@ def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-5, save_
     #     T_max=num_epochs,
     #     eta_min=learning_rate / 10
     # )
+    timestamp = datetime.now().astimezone(timezone(timedelta(hours=11))).strftime('%Y%m%d_%H%M')
+    save_dir = f"checkpoints/{timestamp}"
     
     # Training loop
     for epoch in range(num_epochs):
@@ -289,8 +291,7 @@ def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-5, save_
         # scheduler.step()
         
         # Save checkpoint every epoch
-        timestamp = datetime.now().astimezone(timezone(timedelta(hours=11))).strftime('%Y%m%d_%H%M')
-        alignment_model.save(os.path.join(save_dir, timestamp, f'epoch_{epoch+1}'))
+        alignment_model.save(os.path.join(save_dir, f'epoch_{epoch+1}'))
     
     wandb.finish()
     return alignment_model
