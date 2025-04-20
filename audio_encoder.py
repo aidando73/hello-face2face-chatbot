@@ -20,6 +20,13 @@ class AudioEncoder(nn.Module):
         self.intermediate_size = hidden_dim * (((input_dim - 1) // 2 - 1) // 2)
         print("intermediate_size", self.intermediate_size)
         self.out = nn.Linear(self.intermediate_size, hidden_dim)
+
+        self.embedding = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.Dropout(0.1),
+            nn.ReLU()
+        )
         
         # Transformer layers
         encoder_layer = nn.TransformerEncoderLayer(
