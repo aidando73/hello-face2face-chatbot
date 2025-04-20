@@ -17,7 +17,7 @@ source ~/miniconda3/bin/activate ./env
 python alignment_training.py | tee alignment_training.log
 
 
-python test_text_audio_alignment.py
+python test_text_audio_alignment.py --checkpoint checkpoints/20250421_1003
 # Test mel_filter_bank block
 python mel_filter_bank_block.py
 
