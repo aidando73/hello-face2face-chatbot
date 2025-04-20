@@ -169,7 +169,7 @@ def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-5, save_
         {'params': alignment_model.model.audio_encoder.cnn_layers.parameters()},
         {'params': alignment_model.model.audio_encoder.connector.parameters()},
         {'params': alignment_model.model.audio_encoder.transformer.parameters()}
-    ], lr=learning_rate, momentum=0.5)
+    ], lr=learning_rate, momentum=0.99)
 
     # # Add cosine annealing scheduler
     # scheduler = CosineAnnealingLR(
