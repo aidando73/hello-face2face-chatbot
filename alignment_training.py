@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from audio_qwen_integration import AudioQwenModel
 import os
 import wandb
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from tqdm import tqdm
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
@@ -289,7 +289,7 @@ def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-5, save_
         # scheduler.step()
         
         # Save checkpoint every epoch
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+        timestamp = datetime.now().astimezone(timezone(timedelta(hours=11))).strftime('%Y%m%d_%H%M')
         alignment_model.save(os.path.join(save_dir, timestamp, f'epoch_{epoch+1}'))
     
     wandb.finish()
