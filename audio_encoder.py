@@ -92,6 +92,8 @@ class AudioEncoder(nn.Module):
         if True or os.environ.get("DEBUG"):
             print("CNN output shape:", x.shape)
 
+        x = self.embedding(x)
+
         # Apply transformer
         x = self.transformer(x)
         
