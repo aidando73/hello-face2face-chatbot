@@ -11,7 +11,6 @@ apt-get update && apt-get install -y ffmpeg
 
 ffmpeg -i audio-sample.m4a -acodec pcm_s16le -ar 16000 -ac 1 audio-sample.wav
 
-# Run dataset2.ipynb to download the dataset
 tmux
 apt-get update && apt-get install -y ffmpeg
 source ~/miniconda3/bin/activate ./env

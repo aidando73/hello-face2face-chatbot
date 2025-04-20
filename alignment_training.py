@@ -224,10 +224,10 @@ def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-5, save_
                     if param.grad is not None:
                         print(f"{name}: mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}")
             
-            torch.nn.utils.clip_grad_norm_(
-                [p for name, p in alignment_model.model.audio_encoder.named_parameters()], 
-                max_norm=1
-            )
+            # torch.nn.utils.clip_grad_norm_(
+            #     [p for name, p in alignment_model.model.audio_encoder.named_parameters()], 
+            #     max_norm=1
+            # )
 
             post_clipped_grad_norm = 0.0
             for p in alignment_model.model.audio_encoder.parameters():
