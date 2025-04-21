@@ -218,7 +218,7 @@ class WhaleAudioEncoder(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList([
             WhaleAudioEncoderLayer(hidden_dim, num_heads, dropout, qk_normalization, use_relative_pe, layer_norm_eps, concat_after, normalize_before) for idx in range(num_layers)])
-        self.gradient_checkpointing = True
+        self.gradient_checkpointing = False
 
         self.normalize_before = normalize_before
         if self.normalize_before:
@@ -299,6 +299,7 @@ class AudioProjector(nn.Module):
         x = x.transpose(1, 2)
         x = self.left_padding(x)
         x = self.conv1d(x)
+        x = x.transpose(1, 2)
         x = self.norm(x)
         x = self.act(x)
         x = self.linear(x)
