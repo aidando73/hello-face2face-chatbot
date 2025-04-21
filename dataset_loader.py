@@ -18,7 +18,7 @@ def load_librispeech_to_dataframe(data_dir = "data/", subset='dev-clean'):
         pd.DataFrame: DataFrame with columns ['audio_path', 'text', 'speaker_id', 'chapter_id']
     """
     data = []
-    subset_dir = os.path.join(data_dir, "librispeech", subset, "LibriSpeech", subset)
+    subset_dir = os.path.join(data_dir, subset, "LibriSpeech", subset)
     
     # Walk through the directory structure
     for speaker_dir in os.listdir(subset_dir):
