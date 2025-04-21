@@ -13,11 +13,16 @@ class AudioTextAlignment(nn.Module):
         super().__init__()
         self.model = model
         
-    def forward(self, audio_paths, text_targets = None):
+    def forward(self, audio_paths, text_targets = None, eval=False):
         # Process each audio file separately
         losses = []
         if os.environ.get("DEBUG"):
             print("Model hidden size:", self.model.model.config.hidden_size)
+
+        if eval:
+            self.model.eval()
+        else:
+            self.model.train()
         
         if text_targets is None:
             audio_emb = self.model.process_audio(audio_paths[0])
@@ -131,7 +136,7 @@ class AudioTextAlignment(nn.Module):
         )
         print(f"Audio encoder loaded from {os.path.join(path, 'audio_encoder.pt')}")
 
-def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-5, save_dir='checkpoints'):
+def train_alignment(model, train_loader, val_loader, num_epochs=5, learning_rate=1e-5, save_dir='checkpoints'):
     # Initialize wandb
     wandb.init(
         project="jarvis-social-iq-module",
@@ -276,13 +281,12 @@ def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-5, save_
             print("--------------------------------")
 
         epoch_val_loss = 0
-        for batch_idx, batch in tqdm(enumerate(val_loader), desc=f"Batches (Epoch {epoch+1}/{num_epochs})", total=len(val_loader)):
+        for batch_idx, batch in tqdm(enumerate(val_loader), desc=f"Validation Batches", total=len(val_loader)):
             audio_paths = batch['audio_paths']
             text_targets = batch['text_targets']
-            loss = alignment_model(audio_paths, text_targets)
-            epoch_val_loss += loss.item()
-        
-        epoch_val_loss = epoch_val_loss / len(val_loader)
+            loss = alignment_model(audio_paths, text_targets, eval=True)
+            epoch_val_loss += loss.item() * len(batch['audio_paths'])
+        epoch_val_loss = epoch_val_loss / len(val_loader.dataset)
 
         # Calculate and log epoch metrics
         epoch_loss = total_loss / num_batches
