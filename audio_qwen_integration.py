@@ -3,8 +3,11 @@ from audio_encoder import AudioEncoder
 from load_qwen import load_qwen_model
 from mel_filter_bank_block import MelFilterBank
 import os
-class AudioQwenModel:
+import torch.nn as nn
+
+class AudioQwenModel(nn.Module):
     def __init__(self):
+        super().__init__()
         # Load Qwen model and tokenizer
         self.model, self.tokenizer = load_qwen_model()
         
@@ -34,7 +37,7 @@ class AudioQwenModel:
         audio_embeddings = self.audio_encoder(mel_spec)
         return audio_embeddings
     
-    def generate_response(self, audio_path: str, text_prompt: str = "", max_new_tokens: int = 100):
+    def forward(self, audio_path: str, text_prompt: str = "", max_new_tokens: int = 100):
         # Process audio
         audio_embeddings = self.process_audio(audio_path)
         
@@ -76,7 +79,7 @@ def main():
     audio_path = "audio-sample.wav"
     text_prompt = "The sky is blue because:"
     
-    response = model.generate_response(audio_path, text_prompt)
+    response = model(audio_path, text_prompt)
     print(f"Response: {response}")
 
 if __name__ == "__main__":

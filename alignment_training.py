@@ -13,16 +13,11 @@ class AudioTextAlignment(nn.Module):
         super().__init__()
         self.model = model
         
-    def forward(self, audio_paths, text_targets = None, eval=False):
+    def forward(self, audio_paths, text_targets = None):
         # Process each audio file separately
         losses = []
         if os.environ.get("DEBUG"):
             print("Model hidden size:", self.model.model.config.hidden_size)
-
-        if eval:
-            self.model.eval()
-        else:
-            self.model.train()
         
         if text_targets is None:
             audio_emb = self.model.process_audio(audio_paths[0])
@@ -178,7 +173,8 @@ def train_alignment(model, train_loader, val_loader, num_epochs=5, learning_rate
     for epoch in range(num_epochs):
         total_loss = 0
         num_batches = 0
-        
+
+        alignment_model.train(True)
         for batch_idx, batch in tqdm(enumerate(train_loader), desc=f"Batches (Epoch {epoch+1}/{num_epochs})", total=len(train_loader)):
             # Extract paths and targets from batch
             audio_paths = batch['audio_paths']
@@ -284,7 +280,8 @@ def train_alignment(model, train_loader, val_loader, num_epochs=5, learning_rate
         for batch_idx, batch in tqdm(enumerate(val_loader), desc=f"Validation Batches", total=len(val_loader)):
             audio_paths = batch['audio_paths']
             text_targets = batch['text_targets']
-            loss = alignment_model(audio_paths, text_targets, eval=True)
+            alignment_model.eval()
+            loss = alignment_model(audio_paths, text_targets)
             epoch_val_loss += loss.item() * len(batch['audio_paths'])
         epoch_val_loss = epoch_val_loss / len(val_loader.dataset)
 
@@ -294,6 +291,7 @@ def train_alignment(model, train_loader, val_loader, num_epochs=5, learning_rate
         wandb.log({
             "epoch_loss": epoch_loss,
             "epoch": epoch,
+            "epoch_loss/val": epoch_val_loss,
             # "learning_rate": scheduler.get_last_lr()[0]
         })
         
