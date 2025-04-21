@@ -39,11 +39,6 @@ class AudioEncoder(nn.Module):
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         
-        # Two-layer MLP connector for audio-text modality
-        # self.connector = nn.Sequential(OrderedDict([
-        #     # ("layernorm1", nn.LayerNorm(hidden_dim, eps=1e-2)),
-        #     ("linear1", nn.Linear(hidden_dim, text_embed_dim)),
-        # ]))
         self.connector = nn.Sequential(OrderedDict([
             ("linear1", nn.Linear(hidden_dim, hidden_dim * 2)),
             ("layernorm1", nn.LayerNorm(hidden_dim * 2)),  # Add normalization after first linear
@@ -53,22 +48,6 @@ class AudioEncoder(nn.Module):
             ("layernorm3", nn.LayerNorm(text_embed_dim))  # Add normalization to final output
         ]))
 
-        # # Initialize CNN layers
-        # for m in self.cnn_layers.modules():
-        #     if isinstance(m, nn.Conv1d):
-        #         nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-        #         if m.bias is not None:
-        #             nn.init.zeros_(m.bias)
-        #     elif isinstance(m, nn.BatchNorm1d):
-        #         nn.init.constant_(m.weight, 1)
-        #         nn.init.constant_(m.bias, 0)
-        
-        # # Initialize connector with small weights
-        # for m in self.connector.modules():
-        #     if isinstance(m, nn.Linear):
-        #         nn.init.normal_(m.weight, mean=0.0, std=0.001)  # Very small initialization
-        #         if m.bias is not None:
-        #             nn.init.zeros_(m.bias)
         
     def forward(self, x):
         # x shape: (batch_size, input_dim, seq_len)
