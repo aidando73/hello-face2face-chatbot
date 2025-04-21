@@ -3,10 +3,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 import os
 from collections import OrderedDict
+import math
 
 class AudioEncoder(nn.Module):
     def __init__(self, input_dim=80, hidden_dim=1024, num_heads=8, num_layers=24, text_embed_dim=4096):
         super().__init__()
+        self.hidden_dim = hidden_dim
+        self.text_embed_dim = text_embed_dim
+        self.num_layers = num_layers
+        self.num_heads = num_heads
         
         # CNN downsampling layers
         self.cnn_layers = nn.Sequential(
@@ -27,6 +32,14 @@ class AudioEncoder(nn.Module):
             nn.Dropout(0.1),
             nn.ReLU()
         )
+
+        self.pe_max_len = 5000
+        self.pe = torch.zeros(self.pe_max_len, hidden_dim)
+        position = torch.arange(0, self.pe_max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, hidden_dim, 2).float() * (-math.log(10000.0) / hidden_dim))
+        self.pe[:, 0::2] = torch.sin(position * div_term)
+        self.pe[:, 1::2] = torch.cos(position * div_term)
+        self.pe = self.pe.unsqueeze(0)
         
         # Transformer layers
         encoder_layer = nn.TransformerEncoderLayer(
@@ -72,6 +85,11 @@ class AudioEncoder(nn.Module):
             print("CNN output shape:", x.shape)
 
         x = self.embedding(x)
+
+        xscale = math.sqrt(self.hidden_dim)
+        x = x * xscale
+        pos_emb = self.pe[:, :x.size(1)]
+        x = x + pos_emb
 
         # Apply transformer
         x = self.transformer(x)
