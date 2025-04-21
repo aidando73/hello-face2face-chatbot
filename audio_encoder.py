@@ -278,6 +278,31 @@ class WhaleAudioEncoder(nn.Module):
             last_hidden_state=hidden_states, hidden_states=encoder_states
         )
 
+class AudioProjector(nn.Module):
+    def __init__(self, hidden_dim, text_embed_dim, kernel_size=5):
+        super().__init__()
+        self.kernel_size = kernel_size
+        self.audio_hidden_size = hidden_dim
+        self.left_padding = nn.ConstantPad1d(padding=(0, self.kernel_size - 1), value=0.0) 
+        self.conv1d = nn.Conv1d(
+            in_channels=hidden_dim, 
+            out_channels=2 * hidden_dim, 
+            kernel_size=self.kernel_size, 
+            stride=2, 
+            padding=0
+        )
+        self.norm = nn.LayerNorm(2 * self.audio_hidden_size, eps=1e-3)
+        self.act = nn.GELU()
+        self.linear = nn.Linear(2 * self.audio_hidden_size, text_embed_dim)
+
+    def forward(self, x):
+        x = x.transpose(1, 2)
+        x = self.left_padding(x)
+        x = self.conv1d(x)
+        x = self.norm(x)
+        x = self.act(x)
+        x = self.linear(x)
+        return x
 
 class AudioEncoder(nn.Module):
     def __init__(self, input_dim=80, hidden_dim=1024, num_heads=8, num_layers=24, text_embed_dim=4096):
@@ -317,25 +342,8 @@ class AudioEncoder(nn.Module):
         
         self.encoder = WhaleAudioEncoder(hidden_dim, num_heads=num_heads, num_layers=num_layers)
 
-        # Transformer layers
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=hidden_dim,
-            nhead=num_heads,
-            dim_feedforward=hidden_dim * 4,
-            dropout=0.1,
-            activation='gelu',
-            batch_first=True
-        )
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
-        
-        self.connector = nn.Sequential(OrderedDict([
-            ("linear1", nn.Linear(hidden_dim, hidden_dim * 2)),
-            ("layernorm1", nn.LayerNorm(hidden_dim * 2)),  # Add normalization after first linear
-            ("gelu1", nn.GELU()),
-            ("layernorm2", nn.LayerNorm(hidden_dim * 2)),
-            ("linear2", nn.Linear(hidden_dim * 2, text_embed_dim)),
-            ("layernorm3", nn.LayerNorm(text_embed_dim))  # Add normalization to final output
-        ]))
+        self.audio_projector = AudioProjector(hidden_dim, text_embed_dim)
+
 
         
     def forward(self, x):
@@ -371,26 +379,8 @@ class AudioEncoder(nn.Module):
         encoder_outputs = self.encoder(x, pos_embeds=pos_emb)
         x = encoder_outputs.last_hidden_state
         
-        # Apply modality connector
-        if os.environ.get("DEBUG"):
-            print(f"Pre-connector stats: min={x.min().item():.6f}, max={x.max().item():.6f}, mean={x.mean().item():.6f}")
+        x = self.audio_projector(x)
 
-        x = self.connector(x)  # (batch_size, seq_len/16, text_embed_dim)
-
-        if os.environ.get("DEBUG"):
-            print(f"Post-connector stats: min={x.min().item():.6f}, max={x.max().item():.6f}, mean={x.mean().item():.6f}")
-        
-        # Debug: Print final output stats
-        if os.environ.get("DEBUG"):
-            print(f"Final output stats - mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
-        
-        # Check for NaN or Inf values in final output
-        if os.environ.get("DEBUG") and (torch.isnan(x).any() or torch.isinf(x).any()):
-            print("Warning: NaN or Inf values detected in final output!")
-            print(f"NaN count: {torch.isnan(x).sum().item()}")
-            print(f"Inf count: {torch.isinf(x).sum().item()}")
-            x = torch.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
-        
         return x
 
 
