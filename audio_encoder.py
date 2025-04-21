@@ -34,9 +34,9 @@ class AudioEncoder(nn.Module):
         )
 
         self.pe_max_len = 5000
-        self.pe = torch.zeros(self.pe_max_len, hidden_dim)
-        position = torch.arange(0, self.pe_max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, hidden_dim, 2).float() * (-math.log(10000.0) / hidden_dim))
+        self.pe = torch.zeros(self.pe_max_len, hidden_dim, dtype=torch.float32)
+        position = torch.arange(0, self.pe_max_len, dtype=torch.float32).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, hidden_dim, 2, dtype=torch.float32) * (-math.log(10000.0) / hidden_dim))
         self.pe[:, 0::2] = torch.sin(position * div_term)
         self.pe[:, 1::2] = torch.cos(position * div_term)
         self.pe = self.pe.unsqueeze(0)
@@ -88,7 +88,7 @@ class AudioEncoder(nn.Module):
 
         xscale = math.sqrt(self.hidden_dim)
         x = x * xscale
-        pos_emb = self.pe[:, :x.size(1)]
+        pos_emb = self.pe[:, :x.size(1)].to(x.device).type(x.dtype)
         x = x + pos_emb
 
         # Apply transformer
