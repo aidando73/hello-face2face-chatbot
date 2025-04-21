@@ -274,7 +274,16 @@ def train_alignment(model, train_loader, num_epochs=5, learning_rate=1e-5, save_
             print("--------------------------------")
             print(f"Batch {batch_idx} loss: {loss.item():.4f}")
             print("--------------------------------")
+
+        epoch_val_loss = 0
+        for batch_idx, batch in tqdm(enumerate(val_loader), desc=f"Batches (Epoch {epoch+1}/{num_epochs})", total=len(val_loader)):
+            audio_paths = batch['audio_paths']
+            text_targets = batch['text_targets']
+            loss = alignment_model(audio_paths, text_targets)
+            epoch_val_loss += loss.item()
         
+        epoch_val_loss = epoch_val_loss / len(val_loader)
+
         # Calculate and log epoch metrics
         epoch_loss = total_loss / num_batches
         
@@ -300,5 +309,6 @@ if __name__ == "__main__":
     # Example usage
     model = AudioQwenModel()
     import dataset_loader
-    train_loader = dataset_loader.create_dataloader(data_dir="data/librispeech/LibriSpeech/", subset='dev-clean')
-    train_alignment(model, train_loader)
+    train_loader = dataset_loader.create_dataloader(data_dir="data", subset='dev-clean')
+    val_loader = dataset_loader.create_dataloader(data_dir="data", subset='test-clean')
+    train_alignment(model, train_loader, val_loader)
