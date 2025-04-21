@@ -117,10 +117,10 @@ class WhaleMLP(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        hidden_states, _ = self.w_1(hidden_states)
+        hidden_states = self.w_1(hidden_states)
         hidden_states = self.act(hidden_states)
         hidden_states = self.dropout(hidden_states)
-        hidden_states, _ = self.w_2(hidden_states)
+        hidden_states = self.w_2(hidden_states)
         return hidden_states
 
 
@@ -242,10 +242,8 @@ class WhaleAudioEncoder(nn.Module):
             return_dict (`bool`, *optional*):
                 Whether or not to return a [`~utils.ModelOutput`] instead of a plain tuple.
         """
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        output_hidden_states = False
+        return_dict = True
 
         encoder_states = () if output_hidden_states else None
         hidden_states = inputs_embeds
@@ -370,10 +368,8 @@ class AudioEncoder(nn.Module):
         x = x + pos_emb
 
         # Apply transformer
-        # encoder_outputs = self.encoder(x, pos_embeds=pos_emb)
-        # last_hidden_state = encoder_outputs.last_hidden_state
-
-        x = self.transformer(x)
+        encoder_outputs = self.encoder(x, pos_embeds=pos_emb)
+        x = encoder_outputs.last_hidden_state
         
         # Apply modality connector
         if os.environ.get("DEBUG"):
