@@ -1,9 +1,12 @@
+from typing import Optional, Tuple, Union
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import os
 from collections import OrderedDict
 import math
+from transformers.modeling_outputs import (BaseModelOutput,
+                                           BaseModelOutputWithPooling)
 
 class WhaleAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
@@ -13,8 +16,6 @@ class WhaleAttention(nn.Module):
         self.embed_dim = hidden_dim
         self.num_heads = num_heads
         self.use_flash_attn = False
-        if config.use_flash_attn and not has_flash_attn:
-            print('Warning: Flash Attention is not available, use_flash_attn is set to False.')
         self.head_dim = self.embed_dim // self.num_heads
         if self.head_dim * self.num_heads != self.embed_dim:
             raise ValueError(
@@ -105,11 +106,11 @@ class WhaleAttention(nn.Module):
 class WhaleMLP(nn.Module):
     def __init__(self, hidden_dim, intermediate_size=4096, dropout=0.1, act="relu"):
         super().__init__()
-        self.act = get_act_fn(act)
-        self.w_1 = ColumnParallelLinear(hidden_dim,
+        self.act = nn.ReLU()
+        self.w_1 = nn.Linear(hidden_dim,
                                         intermediate_size,
                                         bias=True)
-        self.w_2 = RowParallelLinear(intermediate_size,
+        self.w_2 = nn.Linear(intermediate_size,
                                      hidden_dim,
                                      bias=True)
 
@@ -131,7 +132,6 @@ class WhaleAudioEncoderLayer(nn.Module):
         dropout=0.1,
         act="relu",
         num_heads=16,
-        dropout=0.1,
         qk_normalization=False,
         use_relative_pe=True,
         layer_norm_eps=1e-05,
@@ -208,7 +208,6 @@ class WhaleAudioEncoder(nn.Module):
         dropout=0.1,
         act="relu",
         num_heads=16,
-        dropout=0.1,
         qk_normalization=False,
         use_relative_pe=True,
         layer_norm_eps=1e-05,
@@ -218,7 +217,7 @@ class WhaleAudioEncoder(nn.Module):
     ):
         super().__init__()
         self.layers = nn.ModuleList([
-            WhaleAudioEncoderLayer(hidden_dim, intermediate_size, dropout, act, num_heads, dropout, qk_normalization, use_relative_pe, layer_norm_eps, concat_after, normalize_before) for idx in range(num_layers)])
+            WhaleAudioEncoderLayer(hidden_dim, num_heads, dropout, qk_normalization, use_relative_pe, layer_norm_eps, concat_after, normalize_before) for idx in range(num_layers)])
         self.gradient_checkpointing = True
 
         self.normalize_before = normalize_before
@@ -318,7 +317,7 @@ class AudioEncoder(nn.Module):
         self.pe[:, 1::2] = torch.cos(position * div_term)
         self.pe = self.pe.unsqueeze(0)
         
-        self.encoder = WhaleAudioEncoder(hidden_dim, intermediate_size=hidden_dim * 4, num_heads=num_heads, num_layers=num_layers, text_embed_dim=text_embed_dim)
+        self.encoder = WhaleAudioEncoder(hidden_dim, num_heads=num_heads, num_layers=num_layers)
 
         # Transformer layers
         encoder_layer = nn.TransformerEncoderLayer(
@@ -396,7 +395,7 @@ class AudioEncoder(nn.Module):
             print(f"Inf count: {torch.isinf(x).sum().item()}")
             x = torch.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
         
-        return x * 0.1
+        return x
 
 
 def apply_local_cmvn(features, epsilon=1e-8):
