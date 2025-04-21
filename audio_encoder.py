@@ -5,6 +5,283 @@ import os
 from collections import OrderedDict
 import math
 
+class WhaleAttention(nn.Module):
+    """Multi-headed attention from 'Attention Is All You Need' paper"""
+
+    def __init__(self, hidden_dim, num_heads=16, dropout=0.1, qk_normalization=False, use_relative_pe=True, layer_norm_eps=1e-05):
+        super().__init__()
+        self.embed_dim = hidden_dim
+        self.num_heads = num_heads
+        self.use_flash_attn = False
+        if config.use_flash_attn and not has_flash_attn:
+            print('Warning: Flash Attention is not available, use_flash_attn is set to False.')
+        self.head_dim = self.embed_dim // self.num_heads
+        if self.head_dim * self.num_heads != self.embed_dim:
+            raise ValueError(
+                f'embed_dim must be divisible by num_heads (got `embed_dim`: {self.embed_dim} and `num_heads`:'
+                f' {self.num_heads}).'
+            )
+
+        self.scale = self.head_dim ** -0.5
+        self.linear_q = nn.Linear(self.embed_dim, self.embed_dim)
+        self.linear_k = nn.Linear(self.embed_dim, self.embed_dim)
+        self.linear_v = nn.Linear(self.embed_dim, self.embed_dim)
+        self.linear_out = nn.Linear(self.embed_dim, self.embed_dim)
+
+        self.attn_drop = nn.Dropout(dropout)
+
+        self.qk_normalization = qk_normalization
+
+        if self.qk_normalization:
+            self.q_norm = nn.LayerNorm(self.embed_dim, eps=layer_norm_eps)
+            self.k_norm = nn.LayerNorm(self.embed_dim, eps=layer_norm_eps)
+
+        self.linear_out = nn.Linear(self.embed_dim, self.embed_dim)
+
+        self.use_relative_pe = use_relative_pe
+        if self.use_relative_pe:
+
+            self.linear_pos = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
+            # these two learnable bias are used in matrix c and matrix d
+            # as described in https://arxiv.org/abs/1901.02860 Section 3.3
+            self.pos_bias_u = nn.Parameter(torch.Tensor(self.num_heads, self.head_dim))
+            self.pos_bias_v = nn.Parameter(torch.Tensor(self.num_heads, self.head_dim))
+            nn.init.xavier_uniform_(self.pos_bias_u)
+            nn.init.xavier_uniform_(self.pos_bias_v)
+
+
+    def _naive_attn(self, x, attention_mask=None, pos_embeds=None):
+        B, N, C = x.shape
+        q = self.linear_q(x).reshape(B, N, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
+        k = self.linear_k(x).reshape(B, N, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
+        v = self.linear_v(x).reshape(B, N, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
+
+        if self.qk_normalization:
+            B_, H_, N_, D_ = q.shape
+            q = self.q_norm(q.transpose(1, 2).flatten(-2, -1)).view(B_, N_, H_, D_).transpose(1, 2)
+            k = self.k_norm(k.transpose(1, 2).flatten(-2, -1)).view(B_, N_, H_, D_).transpose(1, 2)
+
+        if self.use_relative_pe:
+
+            q = q.transpose(1, 2)
+            batch_size = pos_embeds.size(0)
+            p = self.linear_pos(pos_embeds.to(q.dtype)).view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
+            query_with_bias_u = (q + self.pos_bias_u.to(q.device)).transpose(1, 2)
+            query_with_bias_v = (q + self.pos_bias_v.to(q.device)).transpose(1, 2)
+
+            # compute attention score
+            # first compute matrix a and matrix c
+            # as described in https://arxiv.org/abs/1901.02860 Section 3.3
+            matrix_ac = torch.matmul(query_with_bias_u, k.transpose(-2, -1))
+            # compute matrix b and matrix d
+            matrix_bd = torch.matmul(query_with_bias_v, p.transpose(-2, -1))
+            attn = (matrix_ac + matrix_bd) * self.scale
+
+        else:
+            attn = ((q * self.scale) @ k.transpose(-2, -1))
+
+        if attention_mask is not None:
+            attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
+            attn = attn.masked_fill(~attention_mask.bool(), float("-inf"))
+
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+
+        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = self.linear_out(x)
+        return x
+
+
+    def forward(
+            self, 
+            hidden_states: torch.Tensor,
+            attention_mask: torch.Tensor = None,
+            pos_embeds: torch.Tensor = None
+        ) -> torch.Tensor:
+        x = self._naive_attn(hidden_states, attention_mask, pos_embeds)
+        return x
+
+    
+class WhaleMLP(nn.Module):
+    def __init__(self, hidden_dim, intermediate_size=4096, dropout=0.1, act="relu"):
+        super().__init__()
+        self.act = get_act_fn(act)
+        self.w_1 = ColumnParallelLinear(hidden_dim,
+                                        intermediate_size,
+                                        bias=True)
+        self.w_2 = RowParallelLinear(intermediate_size,
+                                     hidden_dim,
+                                     bias=True)
+
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        hidden_states, _ = self.w_1(hidden_states)
+        hidden_states = self.act(hidden_states)
+        hidden_states = self.dropout(hidden_states)
+        hidden_states, _ = self.w_2(hidden_states)
+        return hidden_states
+
+
+class WhaleAudioEncoderLayer(nn.Module):
+    def __init__(
+        self,
+        hidden_dim,
+        intermediate_size=4096,
+        dropout=0.1,
+        act="relu",
+        num_heads=16,
+        dropout=0.1,
+        qk_normalization=False,
+        use_relative_pe=True,
+        layer_norm_eps=1e-05,
+        concat_after=False,
+        normalize_before=True
+    ):
+        super().__init__()
+        self.embed_dim = hidden_dim
+        self.intermediate_size = intermediate_size
+        self.dropout_rate = dropout
+        self.normalize_before = normalize_before
+        self.concat_after = concat_after
+
+        self.attn = WhaleAttention(hidden_dim, num_heads, dropout, qk_normalization, use_relative_pe, layer_norm_eps)
+        self.feed_forward = WhaleMLP(hidden_dim, intermediate_size, dropout, act)
+        self.norm1 = nn.LayerNorm(hidden_dim, eps=layer_norm_eps)
+        self.norm2 = nn.LayerNorm(hidden_dim, eps=layer_norm_eps)
+
+        self.dropout = nn.Dropout(dropout)
+
+        if self.concat_after:
+            self.concat_linear = nn.Linear(self.embed_dim * 2, self.embed_dim)
+        else:
+            self.concat_linear = nn.Identity()
+
+
+    def forward(
+            self,
+            hidden_states: torch.Tensor,
+            attention_mask: torch.Tensor,
+            pos_emb: torch.Tensor,
+    ) -> Tuple[torch.FloatTensor, Optional[torch.FloatTensor], Optional[Tuple[torch.FloatTensor]]]:
+        """
+        Args:
+            hidden_states (`Tuple[torch.FloatTensor, Optional[torch.FloatTensor]]`): input to the layer of shape `(batch, seq_len, embed_dim)`
+        """
+        residual = hidden_states
+        if self.normalize_before:
+            hidden_states = self.norm1(hidden_states)
+        if self.concat_after:
+            hidden_states = torch.cat(
+                [hidden_states, self.attn(hidden_states, attention_mask, pos_emb)],
+                dim=-1
+            )
+            hidden_states = self.concat_linear(hidden_states) + residual
+        else:
+            hidden_states = self.dropout(self.attn(hidden_states, attention_mask, pos_emb)) + residual
+        if not self.normalize_before:
+            hidden_states = self.norm1(hidden_states)
+
+        residual = hidden_states
+        if self.normalize_before:
+            hidden_states = self.norm2(hidden_states)
+        hidden_states = self.dropout(self.feed_forward(hidden_states)) + residual
+        if not self.normalize_before:
+            hidden_states = self.norm2(hidden_states)
+
+        return hidden_states
+
+
+class WhaleAudioEncoder(nn.Module):
+    """
+    Transformer encoder consisting of `config.num_hidden_layers` self attention layers. Each layer is a
+    [`InternEncoderLayer`].
+    Args:
+        config (`InternConfig`):
+            The corresponding vision configuration for the `InternEncoder`.
+    """
+
+    def __init__(
+        self,
+        hidden_dim,
+        intermediate_size=4096,
+        dropout=0.1,
+        act="relu",
+        num_heads=16,
+        dropout=0.1,
+        qk_normalization=False,
+        use_relative_pe=True,
+        layer_norm_eps=1e-05,
+        concat_after=False,
+        normalize_before=True,
+        num_layers=16
+    ):
+        super().__init__()
+        self.layers = nn.ModuleList([
+            WhaleAudioEncoderLayer(hidden_dim, intermediate_size, dropout, act, num_heads, dropout, qk_normalization, use_relative_pe, layer_norm_eps, concat_after, normalize_before) for idx in range(num_layers)])
+        self.gradient_checkpointing = True
+
+        self.normalize_before = normalize_before
+        if self.normalize_before:
+            self.layer_norm = nn.LayerNorm(hidden_dim, eps=layer_norm_eps)
+
+    def forward(
+            self,
+            inputs_embeds,
+            attention_mask: Optional[torch.FloatTensor] = None,
+            pos_embeds: Optional[torch.FloatTensor] = None,
+            output_hidden_states: Optional[bool] = None,
+            return_dict: Optional[bool] = None,
+    ) -> Union[Tuple, BaseModelOutput]:
+        r"""
+        Args:
+            inputs_embeds (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`):
+                Embedded representation of the inputs. Should be float, not int tokens.
+            output_hidden_states (`bool`, *optional*):
+                Whether or not to return the hidden states of all layers. See `hidden_states` under returned tensors
+                for more detail.
+            return_dict (`bool`, *optional*):
+                Whether or not to return a [`~utils.ModelOutput`] instead of a plain tuple.
+        """
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        )
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        encoder_states = () if output_hidden_states else None
+        hidden_states = inputs_embeds
+
+        for idx, encoder_layer in enumerate(self.layers):
+            if output_hidden_states:
+                encoder_states = encoder_states + (hidden_states,)
+            if self.gradient_checkpointing and self.training:
+                layer_outputs = torch.utils.checkpoint.checkpoint(
+                    encoder_layer,
+                    hidden_states,
+                    attention_mask,
+                    pos_embeds,
+                )
+            else:
+                layer_outputs = encoder_layer(
+                    hidden_states,
+                    attention_mask,
+                    pos_embeds,
+                )
+            hidden_states = layer_outputs
+        
+        if self.normalize_before:
+            hidden_states = self.layer_norm(hidden_states)
+
+        if output_hidden_states:
+            encoder_states = encoder_states + (hidden_states,)
+
+        if not return_dict:
+            return tuple(v for v in [hidden_states, encoder_states] if v is not None)
+        return BaseModelOutput(
+            last_hidden_state=hidden_states, hidden_states=encoder_states
+        )
+
+
 class AudioEncoder(nn.Module):
     def __init__(self, input_dim=80, hidden_dim=1024, num_heads=8, num_layers=24, text_embed_dim=4096):
         super().__init__()
@@ -41,6 +318,8 @@ class AudioEncoder(nn.Module):
         self.pe[:, 1::2] = torch.cos(position * div_term)
         self.pe = self.pe.unsqueeze(0)
         
+        self.encoder = WhaleAudioEncoder(hidden_dim, intermediate_size=hidden_dim * 4, num_heads=num_heads, num_layers=num_layers, text_embed_dim=text_embed_dim)
+
         # Transformer layers
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=hidden_dim,
@@ -92,6 +371,9 @@ class AudioEncoder(nn.Module):
         x = x + pos_emb
 
         # Apply transformer
+        # encoder_outputs = self.encoder(x, pos_embeds=pos_emb)
+        # last_hidden_state = encoder_outputs.last_hidden_state
+
         x = self.transformer(x)
         
         # Apply modality connector
