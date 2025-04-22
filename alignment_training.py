@@ -223,11 +223,11 @@ def train_alignment(
             global_step += 1
 
             train_loss = loss.item()
+            train_batch_idx = batch_idx
 
             # Clear memory before validation
             del loss
             optimizer.zero_grad()
-            torch.cuda.empty_cache()
 
             val_loss = None
             if global_step % val_every == 0:
@@ -248,7 +248,7 @@ def train_alignment(
                     "grad_norm/pre_clip": pre_clipped_grad_norm,
                     "grad_norm/post_clip": post_clipped_grad_norm,
                     "epoch": epoch,
-                    "batch": batch_idx,
+                    "batch": train_batch_idx,
                     # "learning_rate": scheduler.get_last_lr()[0]
                     # For compatibility with old logging
                     "batch_loss": train_loss,
