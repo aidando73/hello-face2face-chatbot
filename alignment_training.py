@@ -83,9 +83,14 @@ class AudioTextAlignment(nn.Module):
             labels[:, len(input_embeds)] = self.model.model.config.eos_token_id
             combined_labels.append(labels)
 
-        combined_inputs = torch.cat(combined_inputs, dim=0)
-        combined_masks = torch.cat(combined_masks, dim=0)
+        combined_inputs = torch.cat(combined_inputs, dim=0).to(dtype=torch.float16)
+        combined_masks = torch.cat(combined_masks, dim=0).to(dtype=torch.int32)
         combined_labels = torch.cat(combined_labels, dim=0)
+
+        print(f"combined_inputs dtype: {combined_inputs.dtype}, shape: {combined_inputs.shape}")
+        print(f"combined_masks dtype: {combined_masks.dtype}, shape: {combined_masks.shape}")
+        print(f"combined_labels dtype: {combined_labels.dtype}, shape: {combined_labels.shape}")
+
         # Generate text from audio embeddings
         outputs = self.model.model(
             inputs_embeds=combined_inputs,
@@ -98,7 +103,7 @@ class AudioTextAlignment(nn.Module):
         logits = outputs.logits
             
         # Get the predicted token IDs (take the argmax along the vocabulary dimension)
-        predicted_token_ids = torch.argmax(logits, dim=-1)
+        predicted_token_ids = torch.argmax(logits[0], dim=-1)
         
         # Convert the predicted token IDs back to text
         predicted_text = self.model.tokenizer.batch_decode(
@@ -107,8 +112,8 @@ class AudioTextAlignment(nn.Module):
         )
 
         print("\nSample prediction:")
-        print(f"Target: {text_target}")
-        print(f"Prediction: {predicted_text[0]}")
+        print(f"Target: {text_targets[0]}")
+        print(f"Prediction: {predicted_text}")
         print(f"Loss: {outputs.loss.item():.4f}")
         
         losses.append(outputs.loss)
@@ -212,22 +217,9 @@ def train_alignment(
             # Forward pass
             loss = alignment_model(audio_paths, text_targets)
             
-            # Check for NaN loss
-            if os.environ.get("DEBUG") and torch.isnan(loss):
-                print("Warning: NaN loss detected!")
-                print("Audio paths:", audio_paths)
-                print("Text targets:", text_targets)
-                continue
-            
             # Backward pass
             optimizer.zero_grad()
             loss.backward()
-
-            # Print out gradient statistics
-            if os.environ.get("DEBUG"):
-                print("\nGradient statistics:")
-                for name, param in alignment_model.model.audio_encoder.connector.named_parameters():
-                    print(f"{name}: gradient - mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}, min={param.grad.min().item():.4f}, max={param.grad.max().item():.4f}")
 
             # Calculate gradient norm
             pre_clipped_grad_norm = 0.0
@@ -236,13 +228,6 @@ def train_alignment(
                     pre_clipped_grad_norm += p.grad.data.norm(2).item() ** 2
             pre_clipped_grad_norm = pre_clipped_grad_norm ** 0.5
             
-            # Print gradient statistics for each layer
-            if os.environ.get("DEBUG"):
-                print("\nGradient statistics per layer:")
-                for name, param in alignment_model.model.audio_encoder.named_parameters():
-                    if param.grad is not None:
-                        print(f"{name}: mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}")
-
             post_clipped_grad_norm = 0.0
             for p in alignment_model.model.audio_encoder.parameters():
                 if p.grad is not None:
@@ -250,28 +235,17 @@ def train_alignment(
             post_clipped_grad_norm = post_clipped_grad_norm ** 0.5
             
             # Log gradient norm
-            wandb.log({
-                "batch_loss": loss.item(),
-                "grad_norm/pre_clip": pre_clipped_grad_norm,
-                "grad_norm/post_clip": post_clipped_grad_norm,
-                "epoch": epoch,
-                "batch": batch_idx,
-            })
+            if tracking_enabled:
+                wandb.log({
+                    "batch_loss": loss.item(),
+                    "grad_norm/pre_clip": pre_clipped_grad_norm,
+                    "grad_norm/post_clip": post_clipped_grad_norm,
+                    "epoch": epoch,
+                    "batch": batch_idx,
+                })
             
-            if os.environ.get("DEBUG"):
-                print(f"Gradient norm: {pre_clipped_grad_norm:.4f}")
-                print("\nConnector model parameters - before step:")
-                for name, param in alignment_model.model.audio_encoder.connector.named_parameters():
-                    print(f"{name}: shape={param.shape}, mean={param.data.mean().item():.6f}, std={param.data.std().item():.6f}, min={param.data.min().item():.6f}, max={param.data.max().item():.6f}")
-
             optimizer.step()
 
-            # Print parameters of the connector model
-            if os.environ.get("DEBUG"):
-                print("\nConnector model parameters - after step:")
-                for name, param in alignment_model.model.audio_encoder.connector.named_parameters():
-                    print(f"{name}: shape={param.shape}, mean={param.data.mean().item():.6f}, std={param.data.std().item():.6f}, min={param.data.min().item():.6f}, max={param.data.max().item():.6f}")
-            
             total_loss += loss.item()
             num_batches += 1
             global_step += 1
@@ -287,15 +261,16 @@ def train_alignment(
                 epoch_val_loss = epoch_val_loss / len(val_loader.dataset)
 
             # Log batch metrics
-            wandb.log({
-                "loss/batch_train": loss.item(),
-                "loss/val": epoch_val_loss,
-                "epoch": epoch,
-                "batch": batch_idx,
-                # "learning_rate": scheduler.get_last_lr()[0]
-                # For compatibility with old logging
-                "batch_loss": loss.item(),
-            })
+            if tracking_enabled:
+                wandb.log({
+                    "loss/batch_train": loss.item(),
+                    "loss/val": epoch_val_loss,
+                    "epoch": epoch,
+                    "batch": batch_idx,
+                    # "learning_rate": scheduler.get_last_lr()[0]
+                    # For compatibility with old logging
+                    "batch_loss": loss.item(),
+                })
 
             print("--------------------------------")
             print(f"Batch {batch_idx} loss: {loss.item():.4f}")
@@ -303,14 +278,14 @@ def train_alignment(
 
         # Calculate and log epoch metrics
         epoch_loss = total_loss / num_batches
-        
-        wandb.log({
-            "loss/epoch_train": epoch_loss,
-            "epoch": epoch,
-            # "learning_rate": scheduler.get_last_lr()[0]
-            # For compatibility with old logging
-            "epoch_loss": epoch_loss,
-        })
+        if tracking_enabled:
+            wandb.log({
+                "loss/epoch_train": epoch_loss,
+                "epoch": epoch,
+                # "learning_rate": scheduler.get_last_lr()[0]
+                # For compatibility with old logging
+                "epoch_loss": epoch_loss,
+            })
         
         # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}, LR: {scheduler.get_last_lr()[0]:.8f}")
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}")
@@ -321,7 +296,8 @@ def train_alignment(
         # Save checkpoint every epoch
         alignment_model.save(os.path.join(save_dir, f'epoch_{epoch+1}'))
     
-    wandb.finish()
+    if tracking_enabled:
+        wandb.finish()
     return alignment_model
 
 if __name__ == "__main__":
