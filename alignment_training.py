@@ -242,7 +242,7 @@ def train_alignment(
                     val_loss += the_loss.item() * len(batch['audio_paths'])
                 val_loss_tensor = torch.tensor([val_loss], device=f'cuda:{device_id}')
                 dist.all_reduce(val_loss_tensor)
-                val_loss = val_loss_tensor.item() / len(val_loader)
+                val_loss = val_loss_tensor.item() / len(val_loader.dataset)
 
             # Log batch metrics
             if tracking_enabled and rank == 0:
