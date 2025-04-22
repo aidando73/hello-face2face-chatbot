@@ -137,8 +137,6 @@ class AudioTextAlignment(nn.Module):
         print(f"Audio encoder loaded from {os.path.join(path, 'audio_encoder.pt')}")
 
 def train_alignment(
-        rank,
-        world_size,
         num_epochs=2,
         learning_rate=1e-5,
         batch_size=8,
@@ -147,6 +145,11 @@ def train_alignment(
         tracking_enabled=True,
         debug=False,
     ):
+    torch.cuda.set_device(int(os.environ.get("LOCAL_RANK")))
+    dist.init_process_group(backend="nccl")
+    rank = dist.get_rank()
+    device_id = rank % torch.cuda.device_count()
+
     train_loader = dataset_loader.create_dataloader(data_dir="data", subset='train-clean-100', batch_size=batch_size)
     val_loader = dataset_loader.create_dataloader(data_dir="data", subset='test-clean', batch_size=batch_size)
 
@@ -167,8 +170,8 @@ def train_alignment(
     
     model = AudioQwenModel()
     alignment_model = AudioTextAlignment(model)
-    alignment_model.to(rank)
-    alignment_model = torch.nn.parallel.DistributedDataParallel(alignment_model, device_ids=[rank])
+    alignment_model.to(device_id)
+    alignment_model = torch.nn.parallel.DistributedDataParallel(alignment_model, device_ids=[device_id])
     
     # Freeze Qwen model parameters
     for param in alignment_model.model.model.parameters():
@@ -288,17 +291,8 @@ def train_alignment(
     if tracking_enabled:
         wandb.finish()
     
-    cleanup_process_group()
+    dist.destroy_process_group()
     return alignment_model
 
-def setup_process_group(rank, world_size):
-    os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "12355"
-    dist.init_process_group(backend="nccl", init_method="tcp://localhost:12355", rank=rank, world_size=world_size)
-
-def cleanup_process_group():
-    dist.destroy_process_group()
-
 if __name__ == "__main__":
-    world_size = 1
-    mp.spawn(train_alignment, args=(world_size,), nprocs=world_size, join=True)
+    train_alignment()

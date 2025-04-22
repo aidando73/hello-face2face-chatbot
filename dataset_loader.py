@@ -5,7 +5,8 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
 import wandb
-
+from torch.utils.data.distributed import DistributedSampler
+from pprint import pprint
 def load_librispeech_to_dataframe(data_dir = "data/", subset='dev-clean'):
     """
     Load LibriSpeech data into a pandas DataFrame.
@@ -63,6 +64,7 @@ def load_librispeech_to_dataframe(data_dir = "data/", subset='dev-clean'):
 class LibriSpeechDataset(Dataset):
     def __init__(self, data_dir, subset='dev-clean'):
         self.df = load_librispeech_to_dataframe(data_dir, subset)
+        self.df = self.df.sample(frac=1, random_state=42).reset_index(drop=True)
         
     def __len__(self):
         return len(self.df)
@@ -75,20 +77,26 @@ class LibriSpeechDataset(Dataset):
             'text_target': row['text']
         }
 
-def create_dataloader(data_dir, subset='dev-clean', batch_size=32, num_workers=4, seed=None):
+def create_dataloader(data_dir="data", subset='dev-clean', world_size=1, rank=0, batch_size=32, num_workers=4, seed=None):
     dataset = LibriSpeechDataset(data_dir, subset)
-    
+
     # Create a generator with the specified seed if provided
     generator = torch.Generator()
     if seed is not None:
         generator.manual_seed(seed)
     
+    sampler = DistributedSampler(
+        dataset,
+        num_replicas=world_size,
+        rank=rank,
+    )
+
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
         num_workers=num_workers,
-        shuffle=True,
         generator=generator,
+        sampler=sampler,
         collate_fn=lambda batch: {
             'audio_paths': [item['audio_path'] for item in batch],
             'text_prompts': [item['text_prompt'] for item in batch],
@@ -143,20 +151,13 @@ def evaluate_model(model, dataloader, metrics=['bleu', 'rouge', 'wer']):
     return results
 
 if __name__ == "__main__":
-    # Example usage
-    data_dir = "data/"  # Path to your LibriSpeech directory
-    
-    # Load into DataFrame
-    df = load_librispeech_to_dataframe(data_dir, subset='dev-clean')
-    print(f"Loaded {len(df)} samples")
-    print("\nSample data:")
-    print(df.head())
-    
-    # Create dataloader
-    train_loader = create_dataloader(data_dir, subset='dev-clean')
+    train_loader = create_dataloader(subset='test-clean', world_size=2, rank=1, batch_size=2)
     print(f"\nCreated dataloader with {len(train_loader)} batches")
-    
-    # Example evaluation
-    # model = AudioQwenModel()
-    # results = evaluate_model(model, val_loader)
-    # print(f"Evaluation results: {results}") 
+
+    i = 0
+    for batch in train_loader:
+        print(f"Batch {i}")
+        pprint([text_target[:10] for text_target in batch['text_targets']])
+        i += 1
+        if i >= 2:
+            break
