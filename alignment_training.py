@@ -63,27 +63,33 @@ class AudioTextAlignment(nn.Module):
             combined_masks.append(combined_mask)
 
         # Pad the combined inputs and masks to the max length
-        labels = []
+        combined_labels = []
         max_length = max(input_embeds.shape[1] for input_embeds in combined_inputs)
+        print("max_length", max_length)
         for i, (input_embeds, mask, text_ids, audio_emb) in enumerate(zip(combined_inputs, combined_masks, text_input_ids, audio_embeddings)):
             if len(input_embeds) < max_length:
-                combined_inputs[i] = torch.cat([input_embeds, torch.zeros((1, max_length - len(input_embeds)), device=self.model.model.device)], dim=1)
-                combined_masks[i] = torch.cat([mask, torch.zeros((1, max_length - len(mask)), device=self.model.model.device)], dim=1)
+                print("input_embeds", input_embeds.shape)
+                combined_inputs[i] = torch.cat([input_embeds, torch.zeros((1, max_length - input_embeds.shape[1], input_embeds.shape[2]), device=self.model.model.device)], dim=1)
+                print("combined_inputs", combined_inputs[i].shape)
+                combined_masks[i] = torch.cat([mask, torch.zeros((1, max_length - mask.shape[1]), device=self.model.model.device)], dim=1)
+            print("combined_masks dtype", combined_masks[i].dtype)
+            print("text_ids dtype", text_ids.dtype)
+            print("combined_inputs dtype", combined_inputs[i].dtype)
+
             print("text_ids", text_ids.shape)
             print("audio_emb", audio_emb.shape)
-            print("max_length", max_length)
-            labels = torch.full((1, max_length), -100, device=self.model.model.device)
+            labels = torch.full((1, max_length), -100, device=self.model.model.device, dtype=torch.long)
             labels[:, audio_emb.shape[1]:audio_emb.shape[1]+len(text_ids)] = text_ids
             labels[:, len(input_embeds)] = self.model.model.config.eos_token_id
-            labels.append(labels)
+            combined_labels.append(labels)
 
         combined_inputs = torch.cat(combined_inputs, dim=0)
         combined_masks = torch.cat(combined_masks, dim=0)
-        labels = torch.cat(labels, dim=0)
+        combined_labels = torch.cat(combined_labels, dim=0)
         # Generate text from audio embeddings
         outputs = self.model.model(
             inputs_embeds=combined_inputs,
-            labels=labels,
+            labels=combined_labels,
             attention_mask=combined_masks,
         )
         print(outputs.logits.shape)
