@@ -201,7 +201,6 @@ def train_alignment(
             loss = alignment_model(audio_paths, text_targets)
             
             # Backward pass
-            optimizer.zero_grad()
             loss.backward()
 
             # Calculate gradient norm
@@ -223,33 +222,40 @@ def train_alignment(
             num_batches += 1
             global_step += 1
 
-            epoch_val_loss = None
+            train_loss = loss.item()
+
+            # Clear memory before validation
+            del loss
+            optimizer.zero_grad()
+            torch.cuda.empty_cache()
+
+            val_loss = None
             if global_step % val_every == 0:
-                epoch_val_loss = 0
+                val_loss = 0
+                alignment_model.eval()
                 for batch_idx, batch in tqdm(enumerate(val_loader), desc=f"Validation Batches", total=len(val_loader)):
                     audio_paths = batch['audio_paths']
                     text_targets = batch['text_targets']
-                    alignment_model.eval()
-                    loss = alignment_model(audio_paths, text_targets)
-                    epoch_val_loss += loss.item() * len(batch['audio_paths'])
-                epoch_val_loss = epoch_val_loss / len(val_loader.dataset)
+                    the_loss = alignment_model(audio_paths, text_targets)
+                    val_loss += the_loss.item() * len(batch['audio_paths'])
+                val_loss = val_loss / len(val_loader.dataset)
 
             # Log batch metrics
             if tracking_enabled:
                 wandb.log({
-                    "loss/batch_train": loss.item(),
-                    "loss/val": epoch_val_loss,
+                    "loss/batch_train": train_loss,
+                    "loss/val": val_loss,
                     "grad_norm/pre_clip": pre_clipped_grad_norm,
                     "grad_norm/post_clip": post_clipped_grad_norm,
                     "epoch": epoch,
                     "batch": batch_idx,
                     # "learning_rate": scheduler.get_last_lr()[0]
                     # For compatibility with old logging
-                    "batch_loss": loss.item(),
+                    "batch_loss": train_loss,
                 })
 
             print("--------------------------------")
-            print(f"Batch {batch_idx} loss: {loss.item():.4f}")
+            print(f"Batch {batch_idx} loss: {train_loss:.4f}")
             print("--------------------------------")
 
         # Calculate and log epoch metrics
