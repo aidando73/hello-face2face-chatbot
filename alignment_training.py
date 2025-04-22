@@ -241,8 +241,8 @@ def train_alignment(model, train_loader, val_loader, num_epochs=5, learning_rate
             # Log gradient norm
             wandb.log({
                 "batch_loss": loss.item(),
-                "pre_clipped_grad_norm": pre_clipped_grad_norm,
-                "post_clipped_grad_norm": post_clipped_grad_norm,
+                "grad_norm/pre_clip": pre_clipped_grad_norm,
+                "grad_norm/post_clip": post_clipped_grad_norm,
                 "epoch": epoch,
                 "batch": batch_idx
             })
@@ -289,10 +289,12 @@ def train_alignment(model, train_loader, val_loader, num_epochs=5, learning_rate
         epoch_loss = total_loss / num_batches
         
         wandb.log({
-            "epoch_loss": epoch_loss,
-            "epoch": epoch,
             "epoch_loss/val": epoch_val_loss,
+            "epoch_loss/train": epoch_loss,
+            "epoch": epoch,
             # "learning_rate": scheduler.get_last_lr()[0]
+            # For compatibility with old logging
+            "epoch_loss": epoch_loss,
         })
         
         # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}, LR: {scheduler.get_last_lr()[0]:.8f}")
