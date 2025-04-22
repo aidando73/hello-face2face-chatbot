@@ -10,6 +10,7 @@ from tqdm import tqdm
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import dataset_loader
 import torch.multiprocessing as mp
+import time
 
 class AudioTextAlignment(nn.Module):
     def __init__(self, model: AudioQwenModel):
@@ -171,7 +172,25 @@ def train_alignment(
             }
         )
 
-    model = AudioQwenModel().to(device_id)
+    # Load model in a synchronized way to avoid concurrent downloads
+    if rank == 0:
+        # Rank 0 loads the model first
+        print(f"[Rank {rank}] Loading model...")
+        model = AudioQwenModel().to(device_id)
+        print(f"[Rank {rank}] Model loaded successfully")
+    
+    # Barrier to ensure rank 0 has finished loading the model
+    dist.barrier()
+    
+    # Other ranks load after rank 0 is done
+    if rank != 0:
+        print(f"[Rank {rank}] Loading model...")
+        model = AudioQwenModel().to(device_id)
+        print(f"[Rank {rank}] Model loaded successfully")
+    
+    # Ensure all processes have loaded the model before proceeding
+    dist.barrier()
+    
     alignment_model = AudioTextAlignment(model)
     alignment_model = alignment_model.to(device_id)
     # Freeze Qwen model parameters
