@@ -141,8 +141,8 @@ def train_alignment(
         learning_rate=1e-5,
         batch_size=8,
         save_dir='checkpoints',
-        val_every=700,
-        tracking_enabled=False,
+        val_every=300,
+        tracking_enabled=True,
         debug=False,
     ):
     torch.cuda.set_device(int(os.environ.get("LOCAL_RANK")))
@@ -174,14 +174,14 @@ def train_alignment(
     model = AudioQwenModel().to(device_id)
     alignment_model = AudioTextAlignment(model)
     alignment_model = alignment_model.to(device_id)
-    alignment_model = torch.nn.parallel.DistributedDataParallel(alignment_model, device_ids=[device_id], output_device=device_id)
-    
     # Freeze Qwen model parameters
     for param in alignment_model.model.model.parameters():
         param.requires_grad = False
+    
+    alignment_model = torch.nn.parallel.DistributedDataParallel(alignment_model, device_ids=[device_id], output_device=device_id)
 
     optimizer = torch.optim.SGD([
-        {'params': alignment_model.model.audio_encoder.parameters()},
+        {'params': alignment_model.module.model.audio_encoder.parameters()},
     ], lr=learning_rate, momentum=0.99)
 
     timestamp = datetime.now().astimezone(timezone(timedelta(hours=11))).strftime('%Y%m%d_%H%M')
@@ -207,13 +207,13 @@ def train_alignment(
 
             # Calculate gradient norm
             pre_clipped_grad_norm = 0.0
-            for p in alignment_model.model.audio_encoder.parameters():
+            for p in alignment_model.module.model.audio_encoder.parameters():
                 if p.grad is not None:
                     pre_clipped_grad_norm += p.grad.data.norm(2).item() ** 2
             pre_clipped_grad_norm = pre_clipped_grad_norm ** 0.5
             
             post_clipped_grad_norm = 0.0
-            for p in alignment_model.model.audio_encoder.parameters():
+            for p in alignment_model.module.model.audio_encoder.parameters():
                 if p.grad is not None:
                     post_clipped_grad_norm += p.grad.data.norm(2).item() ** 2
             post_clipped_grad_norm = post_clipped_grad_norm ** 0.5
@@ -232,7 +232,7 @@ def train_alignment(
             optimizer.zero_grad()
 
             val_loss = None
-            if global_step % val_every == 0:
+            if global_step % val_every == 0 or global_step == len(train_loader) - 1:
                 val_loss = 0
                 alignment_model.eval()
                 for batch_idx, batch in tqdm(enumerate(val_loader), desc=f"Validation Batches", total=len(val_loader)):
@@ -267,11 +267,10 @@ def train_alignment(
                 "epoch": epoch,
             })
         
-        # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}, LR: {scheduler.get_last_lr()[0]:.8f}")
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}")
         
-        # Save checkpoint every epoch
-        alignment_model.save(os.path.join(save_dir, f'epoch_{epoch+1}'))
+        if rank == 0:
+            alignment_model.module.save(os.path.join(save_dir, f'epoch_{epoch+1}'))
     
     if tracking_enabled and rank == 0:
         wandb.finish()
