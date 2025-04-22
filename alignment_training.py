@@ -138,7 +138,10 @@ class AudioTextAlignment(nn.Module):
         )
         print(f"Audio encoder loaded from {os.path.join(path, 'audio_encoder.pt')}")
 
-def train_alignment(model, train_loader, val_loader, num_epochs=1, learning_rate=1e-5, save_dir='checkpoints'):
+def train_alignment(model, num_epochs=2, learning_rate=1e-5, batch_size=32, save_dir='checkpoints', val_every=700):
+    train_loader = dataset_loader.create_dataloader(data_dir="data", subset='train-clean-100', batch_size=batch_size)
+    val_loader = dataset_loader.create_dataloader(data_dir="data", subset='test-clean', batch_size=batch_size)
+
     # Initialize wandb
     wandb.init(
         project="jarvis-social-iq-module",
@@ -172,10 +175,12 @@ def train_alignment(model, train_loader, val_loader, num_epochs=1, learning_rate
     #     T_max=num_epochs,
     #     eta_min=learning_rate / 10
     # )
+
     timestamp = datetime.now().astimezone(timezone(timedelta(hours=11))).strftime('%Y%m%d_%H%M')
     save_dir = f"checkpoints/{timestamp}"
     
     # Training loop
+    global_step = 0
     for epoch in range(num_epochs):
         total_loss = 0
         num_batches = 0
@@ -251,34 +256,38 @@ def train_alignment(model, train_loader, val_loader, num_epochs=1, learning_rate
             
             total_loss += loss.item()
             num_batches += 1
-            
+            global_step += 1
+
+            if global_step % val_every == 0:
+                epoch_val_loss = 0
+                for batch_idx, batch in tqdm(enumerate(val_loader), desc=f"Validation Batches", total=len(val_loader)):
+                    audio_paths = batch['audio_paths']
+                    text_targets = batch['text_targets']
+                    alignment_model.eval()
+                    loss = alignment_model(audio_paths, text_targets)
+                    epoch_val_loss += loss.item() * len(batch['audio_paths'])
+                epoch_val_loss = epoch_val_loss / len(val_loader.dataset)
+
             # Log batch metrics
             wandb.log({
-                "batch_loss": loss.item(),
+                "loss/batch_train": loss.item(),
+                "loss/val": epoch_val_loss,
                 "epoch": epoch,
                 "batch": batch_idx,
                 # "learning_rate": scheduler.get_last_lr()[0]
+                # For compatibility with old logging
+                "batch_loss": loss.item(),
             })
 
             print("--------------------------------")
             print(f"Batch {batch_idx} loss: {loss.item():.4f}")
             print("--------------------------------")
 
-        epoch_val_loss = 0
-        for batch_idx, batch in tqdm(enumerate(val_loader), desc=f"Validation Batches", total=len(val_loader)):
-            audio_paths = batch['audio_paths']
-            text_targets = batch['text_targets']
-            alignment_model.eval()
-            loss = alignment_model(audio_paths, text_targets)
-            epoch_val_loss += loss.item() * len(batch['audio_paths'])
-        epoch_val_loss = epoch_val_loss / len(val_loader.dataset)
-
         # Calculate and log epoch metrics
         epoch_loss = total_loss / num_batches
         
         wandb.log({
-            "epoch_loss/val": epoch_val_loss,
-            "epoch_loss/train": epoch_loss,
+            "loss/epoch_train": epoch_loss,
             "epoch": epoch,
             # "learning_rate": scheduler.get_last_lr()[0]
             # For compatibility with old logging
@@ -301,6 +310,5 @@ if __name__ == "__main__":
     # Example usage
     model = AudioQwenModel()
     import dataset_loader
-    train_loader = dataset_loader.create_dataloader(data_dir="data", subset='train-clean-100')
-    val_loader = dataset_loader.create_dataloader(data_dir="data", subset='test-clean')
+
     train_alignment(model, train_loader, val_loader)
