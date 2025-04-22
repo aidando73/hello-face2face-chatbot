@@ -65,19 +65,10 @@ class AudioTextAlignment(nn.Module):
         # Pad the combined inputs and masks to the max length
         combined_labels = []
         max_length = max(input_embeds.shape[1] for input_embeds in combined_inputs)
-        print("max_length", max_length)
         for i, (input_embeds, mask, text_ids, audio_emb) in enumerate(zip(combined_inputs, combined_masks, text_input_ids, audio_embeddings)):
             if len(input_embeds) < max_length:
-                print("input_embeds", input_embeds.shape)
                 combined_inputs[i] = torch.cat([input_embeds, torch.zeros((1, max_length - input_embeds.shape[1], input_embeds.shape[2]), device=self.model.model.device)], dim=1)
-                print("combined_inputs", combined_inputs[i].shape)
                 combined_masks[i] = torch.cat([mask, torch.zeros((1, max_length - mask.shape[1]), device=self.model.model.device)], dim=1)
-            print("combined_masks dtype", combined_masks[i].dtype)
-            print("text_ids dtype", text_ids.dtype)
-            print("combined_inputs dtype", combined_inputs[i].dtype)
-
-            print("text_ids", text_ids.shape)
-            print("audio_emb", audio_emb.shape)
             labels = torch.full((1, max_length), -100, device=self.model.model.device, dtype=torch.long)
             labels[:, audio_emb.shape[1]:audio_emb.shape[1]+len(text_ids)] = text_ids
             labels[:, len(input_embeds)] = self.model.model.config.eos_token_id
@@ -87,17 +78,12 @@ class AudioTextAlignment(nn.Module):
         combined_masks = torch.cat(combined_masks, dim=0).to(dtype=torch.int32)
         combined_labels = torch.cat(combined_labels, dim=0)
 
-        print(f"combined_inputs dtype: {combined_inputs.dtype}, shape: {combined_inputs.shape}")
-        print(f"combined_masks dtype: {combined_masks.dtype}, shape: {combined_masks.shape}")
-        print(f"combined_labels dtype: {combined_labels.dtype}, shape: {combined_labels.shape}")
-
         # Generate text from audio embeddings
         outputs = self.model.model(
             inputs_embeds=combined_inputs,
             labels=combined_labels,
             attention_mask=combined_masks,
         )
-        print(outputs.logits.shape)
 
         # Decode the model's output logits to get the predicted tokens
         logits = outputs.logits
@@ -113,7 +99,7 @@ class AudioTextAlignment(nn.Module):
 
         print("\nSample prediction:")
         print(f"Target: {text_targets[0]}")
-        print(f"Prediction: {predicted_text}")
+        print(f"Prediction: {"".join(predicted_text)}")
         print(f"Loss: {outputs.loss.item():.4f}")
         
         losses.append(outputs.loss)
