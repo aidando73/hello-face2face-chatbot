@@ -65,13 +65,14 @@ class AudioTextAlignment(nn.Module):
         # Pad the combined inputs and masks to the max length
         labels = []
         max_length = max(len(input_embeds) for input_embeds in combined_inputs)
-        for i, (input_embeds, mask) in enumerate(zip(combined_inputs, combined_masks)):
+        for i, (input_embeds, mask, text_ids, audio_emb) in enumerate(zip(combined_inputs, combined_masks, text_input_ids, audio_embeddings)):
             if len(input_embeds) < max_length:
                 combined_inputs[i] = torch.cat([input_embeds, torch.zeros((1, max_length - len(input_embeds)), device=self.model.model.device)], dim=1)
                 combined_masks[i] = torch.cat([mask, torch.zeros((1, max_length - len(mask)), device=self.model.model.device)], dim=1)
-                
+            print("text_ids", text_ids.shape)
+            print("audio_emb", audio_emb.shape)
             labels = torch.full((1, max_length), -100, device=self.model.model.device)
-            labels[:, audio_emb.shape[1]:-1] = text_input_ids[:, 1:]
+            labels[:, audio_emb.shape[1]:-1] = text_ids[:, 1:]
             labels[:, len(input_embeds)] = self.model.model.config.eos_token_id
             labels.append(labels)
 
