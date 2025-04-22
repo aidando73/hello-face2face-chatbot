@@ -201,7 +201,7 @@ def train_alignment(
 
     optimizer = torch.optim.AdamW([
         {'params': alignment_model.module.model.audio_encoder.parameters()},
-    ], lr=learning_rate)
+    ], lr=learning_rate, eps=1e-4)
 
     timestamp = datetime.now().astimezone(timezone(timedelta(hours=11))).strftime('%Y%m%d_%H%M')
     save_dir = f"checkpoints/{timestamp}"
