@@ -155,7 +155,7 @@ def train_alignment(
         model,
         num_epochs=2,
         learning_rate=1e-5,
-        batch_size=32,
+        batch_size=16,
         save_dir='checkpoints',
         val_every=700,
         tracking_enabled=False,
