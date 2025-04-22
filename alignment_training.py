@@ -199,9 +199,9 @@ def train_alignment(
     
     alignment_model = torch.nn.parallel.DistributedDataParallel(alignment_model, device_ids=[device_id], output_device=device_id)
 
-    optimizer = torch.optim.SGD([
+    optimizer = torch.optim.AdamW([
         {'params': alignment_model.module.model.audio_encoder.parameters()},
-    ], lr=learning_rate, momentum=0.99)
+    ], lr=learning_rate)
 
     timestamp = datetime.now().astimezone(timezone(timedelta(hours=11))).strftime('%Y%m%d_%H%M')
     save_dir = f"checkpoints/{timestamp}"
