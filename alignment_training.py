@@ -138,7 +138,7 @@ class AudioTextAlignment(nn.Module):
         )
         print(f"Audio encoder loaded from {os.path.join(path, 'audio_encoder.pt')}")
 
-def train_alignment(model, train_loader, val_loader, num_epochs=5, learning_rate=1e-5, save_dir='checkpoints'):
+def train_alignment(model, train_loader, val_loader, num_epochs=1, learning_rate=1e-5, save_dir='checkpoints'):
     # Initialize wandb
     wandb.init(
         project="jarvis-social-iq-module",
@@ -206,8 +206,6 @@ def train_alignment(model, train_loader, val_loader, num_epochs=5, learning_rate
                 for name, param in alignment_model.model.audio_encoder.connector.named_parameters():
                     print(f"{name}: gradient - mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}, min={param.grad.min().item():.4f}, max={param.grad.max().item():.4f}")
 
-
-
             # Calculate gradient norm
             pre_clipped_grad_norm = 0.0
             for p in alignment_model.model.audio_encoder.parameters():
@@ -221,28 +219,12 @@ def train_alignment(model, train_loader, val_loader, num_epochs=5, learning_rate
                 for name, param in alignment_model.model.audio_encoder.named_parameters():
                     if param.grad is not None:
                         print(f"{name}: mean={param.grad.mean().item():.4f}, std={param.grad.std().item():.4f}")
-            
-            # torch.nn.utils.clip_grad_norm_(
-            #     [p for name, p in alignment_model.model.audio_encoder.named_parameters()], 
-            #     max_norm=1
-            # )
 
             post_clipped_grad_norm = 0.0
             for p in alignment_model.model.audio_encoder.parameters():
                 if p.grad is not None:
                     post_clipped_grad_norm += p.grad.data.norm(2).item() ** 2
             post_clipped_grad_norm = post_clipped_grad_norm ** 0.5
-
-            # Clip gradients
-            # max_grad_norm = 0.001
-            # if grad_norm > max_grad_norm:
-            #     torch.nn.utils.clip_grad_norm_(
-            #         alignment_model.model.audio_encoder.parameters(),
-            #         max_grad_norm
-            #     )
-            #     grad_norm = max_grad_norm
-            #     if os.environ.get("DEBUG"):
-            #         print(f"Gradients clipped from {grad_norm:.4f} to {max_grad_norm}")
             
             # Log gradient norm
             wandb.log({
