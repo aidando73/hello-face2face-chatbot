@@ -145,6 +145,8 @@ def train_alignment(
         val_every=300,
         tracking_enabled=True,
         debug=False,
+        train_subset='train-clean-360',
+        val_subset='test-clean',
     ):
     torch.cuda.set_device(int(os.environ.get("LOCAL_RANK")))
     world_size = int(os.environ.get("WORLD_SIZE"))
@@ -154,8 +156,8 @@ def train_alignment(
     torch.cuda.set_device(device_id)
     print(f"World size: {world_size}, Rank: {rank}, Device ID: {device_id}")
 
-    train_loader = dataset_loader.create_dataloader(subset='train-clean-100', world_size=world_size, rank=rank, batch_size=batch_size)
-    val_loader = dataset_loader.create_dataloader(subset='test-clean', world_size=world_size, rank=rank, batch_size=batch_size)
+    train_loader = dataset_loader.create_dataloader(subset=train_subset, world_size=world_size, rank=rank, batch_size=batch_size)
+    val_loader = dataset_loader.create_dataloader(subset=val_subset, world_size=world_size, rank=rank, batch_size=batch_size)
 
     # Initialize wandb
     if tracking_enabled and rank == 0:
