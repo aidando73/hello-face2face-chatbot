@@ -142,14 +142,16 @@ def train_alignment(
         batch_size=8,
         save_dir='checkpoints',
         val_every=700,
-        tracking_enabled=True,
+        tracking_enabled=False,
         debug=False,
     ):
     torch.cuda.set_device(int(os.environ.get("LOCAL_RANK")))
-    world_size = os.environ.get("WORLD_SIZE")
+    world_size = int(os.environ.get("WORLD_SIZE"))
     dist.init_process_group(backend="nccl")
-    rank = dist.get_rank()
+    rank = int(dist.get_rank())
     device_id = rank % torch.cuda.device_count()
+    torch.cuda.set_device(device_id)
+    print(f"World size: {world_size}, Rank: {rank}, Device ID: {device_id}")
 
     train_loader = dataset_loader.create_dataloader(subset='train-clean-100', world_size=world_size, rank=rank, batch_size=batch_size)
     val_loader = dataset_loader.create_dataloader(subset='test-clean', world_size=world_size, rank=rank, batch_size=batch_size)
@@ -168,11 +170,11 @@ def train_alignment(
                 "optimizer": "SGD"
             }
         )
-    
-    model = AudioQwenModel()
+
+    model = AudioQwenModel().to(device_id)
     alignment_model = AudioTextAlignment(model)
-    alignment_model.to(device_id)
-    alignment_model = torch.nn.parallel.DistributedDataParallel(alignment_model, device_ids=[device_id])
+    alignment_model = alignment_model.to(device_id)
+    alignment_model = torch.nn.parallel.DistributedDataParallel(alignment_model, device_ids=[device_id], output_device=device_id)
     
     # Freeze Qwen model parameters
     for param in alignment_model.model.model.parameters():
@@ -238,7 +240,9 @@ def train_alignment(
                     text_targets = batch['text_targets']
                     the_loss = alignment_model(audio_paths, text_targets)
                     val_loss += the_loss.item() * len(batch['audio_paths'])
-                val_loss = val_loss / len(val_loader.dataset)
+                val_loss_tensor = torch.tensor([val_loss], device=f'cuda:{device_id}')
+                dist.all_reduce(val_loss_tensor)
+                val_loss = val_loss_tensor.item() / world_size
 
             # Log batch metrics
             if tracking_enabled and rank == 0:
@@ -249,8 +253,6 @@ def train_alignment(
                     "grad_norm/post_clip": post_clipped_grad_norm,
                     "epoch": epoch,
                     "batch": train_batch_idx,
-                    # For compatibility with old logging
-                    "batch_loss": train_loss,
                 })
 
             print("--------------------------------")
@@ -263,8 +265,6 @@ def train_alignment(
             wandb.log({
                 "loss/epoch_train": epoch_loss,
                 "epoch": epoch,
-                # For compatibility with old logging
-                "epoch_loss": epoch_loss,
             })
         
         # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}, LR: {scheduler.get_last_lr()[0]:.8f}")
