@@ -2,12 +2,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from audio_qwen_integration import AudioQwenModel
+import torch.distributed as dist
 import os
 import wandb
 from datetime import datetime, timezone, timedelta
 from tqdm import tqdm
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import dataset_loader
+import torch.multiprocessing as mp
+
 class AudioTextAlignment(nn.Module):
     def __init__(self, model: AudioQwenModel):
         super().__init__()
@@ -134,7 +137,8 @@ class AudioTextAlignment(nn.Module):
         print(f"Audio encoder loaded from {os.path.join(path, 'audio_encoder.pt')}")
 
 def train_alignment(
-        model,
+        rank,
+        world_size,
         num_epochs=2,
         learning_rate=1e-5,
         batch_size=8,
@@ -161,7 +165,10 @@ def train_alignment(
             }
         )
     
+    model = AudioQwenModel()
     alignment_model = AudioTextAlignment(model)
+    alignment_model.to(rank)
+    alignment_model = torch.nn.parallel.DistributedDataParallel(alignment_model, device_ids=[rank])
     
     # Freeze Qwen model parameters
     for param in alignment_model.model.model.parameters():
@@ -280,11 +287,18 @@ def train_alignment(
     
     if tracking_enabled:
         wandb.finish()
+    
+    cleanup_process_group()
     return alignment_model
 
-if __name__ == "__main__":
-    
-    # Example usage
-    model = AudioQwenModel()
+def setup_process_group(rank, world_size):
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = "12355"
+    dist.init_process_group(backend="nccl", init_method="tcp://localhost:12355", rank=rank, world_size=world_size)
 
-    train_alignment(model)
+def cleanup_process_group():
+    dist.destroy_process_group()
+
+if __name__ == "__main__":
+    world_size = 1
+    mp.spawn(train_alignment, args=(world_size,), nprocs=world_size, join=True)
