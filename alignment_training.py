@@ -154,9 +154,10 @@ def train_alignment(
                 "learning_rate": learning_rate,
                 "epochs": num_epochs,
                 "batch_size": train_loader.batch_size,
+                "val_every": val_every,
+                "save_dir": save_dir,
                 "model": "Qwen2.5-7B",
-                "optimizer": "AdamW",
-                "scheduler": "CosineAnnealing"
+                "optimizer": "SGD"
             }
         )
     
