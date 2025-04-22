@@ -99,7 +99,7 @@ class AudioTextAlignment(nn.Module):
 
         print("\nSample prediction:")
         print(f"Target: {text_targets[0]}")
-        print(f"Prediction: {"".join(predicted_text)}")
+        print(f"Prediction: {''.join(predicted_text)}")
         print(f"Loss: {outputs.loss.item():.4f}")
         
         losses.append(outputs.loss)
@@ -236,6 +236,7 @@ def train_alignment(
             num_batches += 1
             global_step += 1
 
+            epoch_val_loss = None
             if global_step % val_every == 0:
                 epoch_val_loss = 0
                 for batch_idx, batch in tqdm(enumerate(val_loader), desc=f"Validation Batches", total=len(val_loader)):
