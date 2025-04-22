@@ -137,7 +137,7 @@ class AudioTextAlignment(nn.Module):
         print(f"Audio encoder loaded from {os.path.join(path, 'audio_encoder.pt')}")
 
 def train_alignment(
-        num_epochs=2,
+        num_epochs=1,
         learning_rate=1e-5,
         batch_size=8,
         save_dir='checkpoints',
@@ -178,20 +178,9 @@ def train_alignment(
     for param in alignment_model.model.model.parameters():
         param.requires_grad = False
 
-    # Only optimize the audio encoder
-    # optimizer = torch.optim.AdamW([
-    #     {'params': alignment_model.model.audio_encoder.connector[0].parameters()}
-    # ], lr=learning_rate)
     optimizer = torch.optim.SGD([
         {'params': alignment_model.model.audio_encoder.parameters()},
     ], lr=learning_rate, momentum=0.99)
-
-    # # Add cosine annealing scheduler
-    # scheduler = CosineAnnealingLR(
-    #     optimizer, 
-    #     T_max=num_epochs,
-    #     eta_min=learning_rate / 10
-    # )
 
     timestamp = datetime.now().astimezone(timezone(timedelta(hours=11))).strftime('%Y%m%d_%H%M')
     save_dir = f"checkpoints/{timestamp}"
@@ -260,7 +249,6 @@ def train_alignment(
                     "grad_norm/post_clip": post_clipped_grad_norm,
                     "epoch": epoch,
                     "batch": train_batch_idx,
-                    # "learning_rate": scheduler.get_last_lr()[0]
                     # For compatibility with old logging
                     "batch_loss": train_loss,
                 })
@@ -275,16 +263,12 @@ def train_alignment(
             wandb.log({
                 "loss/epoch_train": epoch_loss,
                 "epoch": epoch,
-                # "learning_rate": scheduler.get_last_lr()[0]
                 # For compatibility with old logging
                 "epoch_loss": epoch_loss,
             })
         
         # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}, LR: {scheduler.get_last_lr()[0]:.8f}")
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}")
-        
-        # Step the scheduler at the end of each epoch
-        # scheduler.step()
         
         # Save checkpoint every epoch
         alignment_model.save(os.path.join(save_dir, f'epoch_{epoch+1}'))
