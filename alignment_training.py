@@ -150,8 +150,7 @@ def train_alignment(model, train_loader, val_loader, num_epochs=5, learning_rate
     # Freeze Qwen model parameters
     for param in alignment_model.model.model.parameters():
         param.requires_grad = False
-    
-            
+
     # Only optimize the audio encoder
     # optimizer = torch.optim.AdamW([
     #     {'params': alignment_model.model.audio_encoder.connector[0].parameters()}
