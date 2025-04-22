@@ -144,7 +144,7 @@ def train_alignment(
         batch_size=16,
         save_dir='checkpoints',
         val_every=700,
-        tracking_enabled=False,
+        tracking_enabled=True,
         debug=False,
     ):
     train_loader = dataset_loader.create_dataloader(data_dir="data", subset='train-clean-100', batch_size=batch_size)
