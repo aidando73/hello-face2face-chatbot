@@ -54,11 +54,12 @@ class AudioTextAlignment(nn.Module):
         combined_masks = []
 
         for i, (audio_emb, text_emb, mask) in enumerate(zip(audio_embeddings, text_embeddings, text_mask)):
-            print(audio_emb.shape, text_emb.shape, mask.shape)
+            text_emb = text_emb.unsqueeze(0)
             input_embeds = torch.cat([audio_emb, text_emb], dim=1)
             combined_inputs.append(input_embeds)
 
-            combined_mask = torch.cat([torch.ones_like(audio_emb), mask], dim=1)
+            combined_mask = torch.cat([torch.ones(audio_emb.shape[1]).to(self.model.model.device), mask])
+            combined_mask = combined_mask.unsqueeze(0)
             combined_masks.append(combined_mask)
 
         # Pad the combined inputs and masks to the max length
@@ -316,6 +317,7 @@ def train_alignment(
     return alignment_model
 
 if __name__ == "__main__":
+    
     # Example usage
     model = AudioQwenModel()
 
