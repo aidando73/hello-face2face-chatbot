@@ -70,8 +70,8 @@ class AudioTextAlignment(nn.Module):
                 combined_inputs[i] = torch.cat([input_embeds, torch.zeros((1, max_length - input_embeds.shape[1], input_embeds.shape[2]), device=self.model.model.device)], dim=1)
                 combined_masks[i] = torch.cat([mask, torch.zeros((1, max_length - mask.shape[1]), device=self.model.model.device)], dim=1)
             labels = torch.full((1, max_length), -100, device=self.model.model.device, dtype=torch.long)
-            labels[:, audio_emb.shape[1]:audio_emb.shape[1]+len(text_ids)] = text_ids
-            labels[:, len(input_embeds)] = self.model.model.config.eos_token_id
+            labels[:, audio_emb.shape[1]:audio_emb.shape[1]+len(text_ids) - 1] = text_ids[1:]
+            labels[:, len(input_embeds) - 1] = self.model.model.config.eos_token_id
             combined_labels.append(labels)
 
         combined_inputs = torch.cat(combined_inputs, dim=0).to(dtype=torch.float16)
