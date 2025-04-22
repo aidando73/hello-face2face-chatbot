@@ -32,3 +32,16 @@ python dataset_loader.py
 ```
 
 Pod usage begins at: 12 Apr 2025
+
+
+
+```bash
+# Giga speech install
+
+git clone https://github.com/SpeechColab/GigaSpeech.git
+pip install speechcolab
+echo '{password_is_in_google_password_manager}' > SAFEBOX/password
+mkdir -p data
+tmux
+bash utils/download_gigaspeech.sh data
+```
