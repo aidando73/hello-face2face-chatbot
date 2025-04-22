@@ -47,7 +47,10 @@ class AudioTextAlignment(nn.Module):
         
         audio_embeddings = torch.cat(audio_embeddings, dim=0)
 
-        
+        # Tokenize the target text (for loss computation)
+        text_inputs = self.model.tokenizer(text_targets, padding=True, return_tensors="pt")
+        text_input_ids = text_inputs['input_ids'].long().to(self.model.model.device)
+        text_emb = self.model.model.get_input_embeddings()(text_input_ids)
 
         for audio_path, text_target in zip(audio_paths, text_targets):
             # Tokenize the target text (for loss computation)
