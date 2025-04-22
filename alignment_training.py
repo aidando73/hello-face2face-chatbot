@@ -216,16 +216,6 @@ def train_alignment(
                     post_clipped_grad_norm += p.grad.data.norm(2).item() ** 2
             post_clipped_grad_norm = post_clipped_grad_norm ** 0.5
             
-            # Log gradient norm
-            if tracking_enabled:
-                wandb.log({
-                    "batch_loss": loss.item(),
-                    "grad_norm/pre_clip": pre_clipped_grad_norm,
-                    "grad_norm/post_clip": post_clipped_grad_norm,
-                    "epoch": epoch,
-                    "batch": batch_idx,
-                })
-            
             optimizer.step()
 
             total_loss += loss.item()
@@ -248,6 +238,8 @@ def train_alignment(
                 wandb.log({
                     "loss/batch_train": loss.item(),
                     "loss/val": epoch_val_loss,
+                    "grad_norm/pre_clip": pre_clipped_grad_norm,
+                    "grad_norm/post_clip": post_clipped_grad_norm,
                     "epoch": epoch,
                     "batch": batch_idx,
                     # "learning_rate": scheduler.get_last_lr()[0]
