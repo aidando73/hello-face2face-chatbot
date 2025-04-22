@@ -51,9 +51,6 @@ def extract_tarfile(tar_path, extract_path):
     return extract_path
 
 DATA_CONFIG = {
-    "dev-clean": {
-        "download_mirror": "https://us.openslr.org/resources/12/dev-clean.tar.gz",
-    },
     "test-clean": {
         "download_mirror": "https://us.openslr.org/resources/12/test-clean.tar.gz",
     },
