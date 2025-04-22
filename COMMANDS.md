@@ -22,7 +22,7 @@ torchrun \
     --rdzv_endpoint=localhost:29400 \
     alignment_training.py | tee alignment_training.log
 
-python test_text_audio_alignment.py --checkpoint checkpoints/20250422_0001
+python test_text_audio_alignment.py --checkpoint checkpoints/20250422_2256 --epoch 1
 # Test mel_filter_bank block
 python mel_filter_bank_block.py
 
