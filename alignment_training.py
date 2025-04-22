@@ -313,6 +313,6 @@ if __name__ == "__main__":
     # Example usage
     model = AudioQwenModel()
     import dataset_loader
-    train_loader = dataset_loader.create_dataloader(data_dir="data", subset='dev-clean')
+    train_loader = dataset_loader.create_dataloader(data_dir="data", subset='train-clean-100')
     val_loader = dataset_loader.create_dataloader(data_dir="data", subset='test-clean')
     train_alignment(model, train_loader, val_loader)

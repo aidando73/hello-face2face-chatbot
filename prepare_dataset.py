@@ -56,6 +56,9 @@ DATA_CONFIG = {
     },
     "test-clean": {
         "download_mirror": "https://us.openslr.org/resources/12/test-clean.tar.gz",
+    },
+    "train-clean-100": {
+        "download_mirror": "https://us.openslr.org/resources/12/train-clean-100.tar.gz",
     }
 }
 
