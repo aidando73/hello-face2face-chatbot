@@ -243,7 +243,7 @@ def train_alignment(model, train_loader, val_loader, num_epochs=5, learning_rate
                 "grad_norm/pre_clip": pre_clipped_grad_norm,
                 "grad_norm/post_clip": post_clipped_grad_norm,
                 "epoch": epoch,
-                "batch": batch_idx
+                "batch": batch_idx,
             })
             
             if os.environ.get("DEBUG"):
