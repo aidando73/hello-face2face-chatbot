@@ -53,7 +53,7 @@ def load_librispeech_to_dataframe(data_dir = "data/", subset='dev-clean'):
                         
                     data.append({
                         'audio_path': audio_path,
-                        'text': text,
+                        'text': text.lower(),
                         'speaker_id': speaker_dir,
                         'chapter_id': chapter_dir,
                         'utterance_id': utterance_id
