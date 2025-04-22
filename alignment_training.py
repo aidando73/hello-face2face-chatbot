@@ -15,7 +15,6 @@ class AudioTextAlignment(nn.Module):
         
     def forward(self, audio_paths, text_targets = None):
         # Process each audio file separately
-        losses = []
         if os.environ.get("DEBUG"):
             print("Model hidden size:", self.model.model.config.hidden_size)
         
@@ -102,11 +101,8 @@ class AudioTextAlignment(nn.Module):
         print(f"Prediction: {''.join(predicted_text)}")
         print(f"Loss: {outputs.loss.item():.4f}")
         
-        losses.append(outputs.loss)
-    
         # Average the losses
-        avg_loss = torch.mean(torch.stack(losses))
-        return avg_loss
+        return outputs.loss
     
     def save(self, path):
         """
@@ -141,7 +137,7 @@ def train_alignment(
         model,
         num_epochs=2,
         learning_rate=1e-5,
-        batch_size=16,
+        batch_size=8,
         save_dir='checkpoints',
         val_every=700,
         tracking_enabled=True,
