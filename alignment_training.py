@@ -37,15 +37,19 @@ class AudioTextAlignment(nn.Module):
             )
             
             return generated_text
-        
-        for audio_path, text_target in zip(audio_paths, text_targets):
-            # Process audio using the model's existing functionality
+
+        # Process audio_embeddings individually
+        audio_embeddings = []
+        for audio_path in audio_paths:
             audio_emb = self.model.process_audio(audio_path)
             audio_emb = audio_emb.to(self.model.model.device).to(self.model.model.dtype)
-            
-            if os.environ.get("DEBUG"):
-                print("audio_emb.shape", audio_emb.shape)
+            audio_embeddings.append(audio_emb)
+        
+        audio_embeddings = torch.cat(audio_embeddings, dim=0)
 
+        
+
+        for audio_path, text_target in zip(audio_paths, text_targets):
             # Tokenize the target text (for loss computation)
             text_inputs = self.model.tokenizer(text_target, padding=True, return_tensors="pt")
             text_input_ids = text_inputs['input_ids'].long().to(self.model.model.device)
