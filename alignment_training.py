@@ -45,66 +45,63 @@ class AudioTextAlignment(nn.Module):
             audio_emb = audio_emb.to(self.model.model.device).to(self.model.model.dtype)
             audio_embeddings.append(audio_emb)
         
-        audio_embeddings = torch.cat(audio_embeddings, dim=0)
-
-        # Tokenize the target text (for loss computation)
         text_inputs = self.model.tokenizer(text_targets, padding=True, return_tensors="pt")
         text_input_ids = text_inputs['input_ids'].long().to(self.model.model.device)
-        text_emb = self.model.model.get_input_embeddings()(text_input_ids)
+        text_mask = text_inputs['attention_mask'].to(self.model.model.device)
+        text_embeddings = self.model.model.get_input_embeddings()(text_input_ids)
 
-        for audio_path, text_target in zip(audio_paths, text_targets):
-            # Tokenize the target text (for loss computation)
-            text_inputs = self.model.tokenizer(text_target, padding=True, return_tensors="pt")
-            text_input_ids = text_inputs['input_ids'].long().to(self.model.model.device)
-            text_emb = self.model.model.get_input_embeddings()(text_input_ids)
-            
+        combined_inputs = []
+        combined_masks = []
+
+        for i, (audio_emb, text_emb, mask) in enumerate(zip(audio_embeddings, text_embeddings, text_mask)):
             input_embeds = torch.cat([audio_emb, text_emb], dim=1)
-            labels = torch.full((1, input_embeds.shape[1]), -100, device=self.model.model.device)
-            # Set labels for text positions only (shifted by 1 for next-token prediction)
+            combined_inputs.append(input_embeds)
+
+            combined_mask = torch.cat([torch.ones_like(audio_emb), mask], dim=1)
+            combined_masks.append(combined_mask)
+
+        # Pad the combined inputs and masks to the max length
+        labels = []
+        max_length = max(len(input_embeds) for input_embeds in combined_inputs)
+        for i, (input_embeds, mask) in enumerate(zip(combined_inputs, combined_masks)):
+            if len(input_embeds) < max_length:
+                combined_inputs[i] = torch.cat([input_embeds, torch.zeros((1, max_length - len(input_embeds)), device=self.model.model.device)], dim=1)
+                combined_masks[i] = torch.cat([mask, torch.zeros((1, max_length - len(mask)), device=self.model.model.device)], dim=1)
+                
+            labels = torch.full((1, max_length), -100, device=self.model.model.device)
             labels[:, audio_emb.shape[1]:-1] = text_input_ids[:, 1:]
-            # Last position predicts EOS token
-            labels[:, -1] = self.model.model.config.eos_token_id
+            labels[:, len(input_embeds)] = self.model.model.config.eos_token_id
+            labels.append(labels)
 
-            if os.environ.get("DEBUG"):
-                print("input_embeds.shape", input_embeds.shape)
-                print("labels.shape", labels.shape)
+        combined_inputs = torch.cat(combined_inputs, dim=0)
+        combined_masks = torch.cat(combined_masks, dim=0)
+        labels = torch.cat(labels, dim=0)
+        # Generate text from audio embeddings
+        outputs = self.model.model(
+            inputs_embeds=combined_inputs,
+            labels=labels,
+            attention_mask=combined_masks,
+        )
+
+        # Decode the model's output logits to get the predicted tokens
+        logits = outputs.logits
             
-            if True or os.environ.get("DEBUG"):
-                print(f"audio_emb mean: {audio_emb.mean().item():.4f}, std: {audio_emb.std().item():.4f}, min: {audio_emb.min().item():.4f}, max: {audio_emb.max().item():.4f}")
-                print(f"text_emb mean: {text_emb.mean().item():.4f}, std: {text_emb.std().item():.4f}, min: {text_emb.min().item():.4f}, max: {text_emb.max().item():.4f}")
-
-            # Generate text from audio embeddings
-            outputs = self.model.model(
-                inputs_embeds=input_embeds,
-                labels=labels,
-                # attention_mask=audio_attention_mask,
-                # output_hidden_states=True,
-            )
-
-            if os.environ.get("DEBUG"):
-                print("outputs.logits.shape", outputs.logits.shape)
-                # print("num hidden states", len(outputs.hidden_states))
-                # print("outputs.hidden_states shapes", [h.shape for h in outputs.hidden_states])
-
-            # Decode the model's output logits to get the predicted tokens
-            logits = outputs.logits
-            
-            # Get the predicted token IDs (take the argmax along the vocabulary dimension)
-            predicted_token_ids = torch.argmax(logits, dim=-1)
-            
-            # Convert the predicted token IDs back to text
-            predicted_text = self.model.tokenizer.batch_decode(
-                predicted_token_ids, 
-                skip_special_tokens=True
-            )
-
-            print("\nSample prediction:")
-            print(f"Target: {text_target}")
-            print(f"Prediction: {predicted_text[0]}")
-            print(f"Loss: {outputs.loss.item():.4f}")
-            
-            losses.append(outputs.loss)
+        # Get the predicted token IDs (take the argmax along the vocabulary dimension)
+        predicted_token_ids = torch.argmax(logits, dim=-1)
         
+        # Convert the predicted token IDs back to text
+        predicted_text = self.model.tokenizer.batch_decode(
+            predicted_token_ids, 
+            skip_special_tokens=True
+        )
+
+        print("\nSample prediction:")
+        print(f"Target: {text_target}")
+        print(f"Prediction: {predicted_text[0]}")
+        print(f"Loss: {outputs.loss.item():.4f}")
+        
+        losses.append(outputs.loss)
+    
         # Average the losses
         avg_loss = torch.mean(torch.stack(losses))
         return avg_loss
