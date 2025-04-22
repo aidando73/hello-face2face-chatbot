@@ -146,15 +146,16 @@ def train_alignment(
         debug=False,
     ):
     torch.cuda.set_device(int(os.environ.get("LOCAL_RANK")))
+    world_size = os.environ.get("WORLD_SIZE")
     dist.init_process_group(backend="nccl")
     rank = dist.get_rank()
     device_id = rank % torch.cuda.device_count()
 
-    train_loader = dataset_loader.create_dataloader(data_dir="data", subset='train-clean-100', batch_size=batch_size)
-    val_loader = dataset_loader.create_dataloader(data_dir="data", subset='test-clean', batch_size=batch_size)
+    train_loader = dataset_loader.create_dataloader(subset='train-clean-100', world_size=world_size, rank=rank, batch_size=batch_size)
+    val_loader = dataset_loader.create_dataloader(subset='test-clean', world_size=world_size, rank=rank, batch_size=batch_size)
 
     # Initialize wandb
-    if tracking_enabled:
+    if tracking_enabled and rank == 0:
         wandb.init(
             project="jarvis-social-iq-module",
             config={
@@ -251,7 +252,7 @@ def train_alignment(
                 val_loss = val_loss / len(val_loader.dataset)
 
             # Log batch metrics
-            if tracking_enabled:
+            if tracking_enabled and rank == 0:
                 wandb.log({
                     "loss/batch_train": train_loss,
                     "loss/val": val_loss,
@@ -270,7 +271,7 @@ def train_alignment(
 
         # Calculate and log epoch metrics
         epoch_loss = total_loss / num_batches
-        if tracking_enabled:
+        if tracking_enabled and rank == 0:
             wandb.log({
                 "loss/epoch_train": epoch_loss,
                 "epoch": epoch,
@@ -288,7 +289,7 @@ def train_alignment(
         # Save checkpoint every epoch
         alignment_model.save(os.path.join(save_dir, f'epoch_{epoch+1}'))
     
-    if tracking_enabled:
+    if tracking_enabled and rank == 0:
         wandb.finish()
     
     dist.destroy_process_group()
