@@ -323,7 +323,6 @@ class AudioEncoder(nn.Module):
         )
 
         self.intermediate_size = hidden_dim * (((input_dim - 1) // 2 - 1) // 2)
-        print("intermediate_size", self.intermediate_size)
         self.out = nn.Linear(self.intermediate_size, hidden_dim)
 
         self.embedding = nn.Sequential(
@@ -349,25 +348,15 @@ class AudioEncoder(nn.Module):
         
     def forward(self, x):
         # x shape: (batch_size, input_dim, seq_len)
-        print(f"Audio encoder input shape: {x.shape}")
-
-        # Debug: Print input stats
-        if os.environ.get("DEBUG"):
-            print(f"Audio encoder input stats - mean: {x.mean().item():.4f}, std: {x.std().item():.4f}, min: {x.min().item():.4f}, max: {x.max().item():.4f}")
-
         # Apply CNN downsampling
         x = x.transpose(1, 2)
         x = x.unsqueeze(1)
-        print(f"Audio encoder input shape after transpose: {x.shape}")
         x = self.cnn_layers(x)
 
         x = x.transpose(1, 2)
         b, t, h, m = x.size()
         x = x.contiguous().view(b, t, h * m)
         x = self.out(x)
-
-        if True or os.environ.get("DEBUG"):
-            print("CNN output shape:", x.shape)
 
         x = self.embedding(x)
 
