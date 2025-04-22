@@ -7,7 +7,7 @@ import wandb
 from datetime import datetime, timezone, timedelta
 from tqdm import tqdm
 from torch.optim.lr_scheduler import CosineAnnealingLR
-
+import dataset_loader
 class AudioTextAlignment(nn.Module):
     def __init__(self, model: AudioQwenModel):
         super().__init__()
@@ -54,6 +54,7 @@ class AudioTextAlignment(nn.Module):
         combined_masks = []
 
         for i, (audio_emb, text_emb, mask) in enumerate(zip(audio_embeddings, text_embeddings, text_mask)):
+            print(audio_emb.shape, text_emb.shape, mask.shape)
             input_embeds = torch.cat([audio_emb, text_emb], dim=1)
             combined_inputs.append(input_embeds)
 
@@ -82,6 +83,7 @@ class AudioTextAlignment(nn.Module):
             labels=labels,
             attention_mask=combined_masks,
         )
+        print(outputs.logits.shape)
 
         # Decode the model's output logits to get the predicted tokens
         logits = outputs.logits
@@ -135,22 +137,32 @@ class AudioTextAlignment(nn.Module):
         )
         print(f"Audio encoder loaded from {os.path.join(path, 'audio_encoder.pt')}")
 
-def train_alignment(model, num_epochs=2, learning_rate=1e-5, batch_size=32, save_dir='checkpoints', val_every=700):
+def train_alignment(
+        model,
+        num_epochs=2,
+        learning_rate=1e-5,
+        batch_size=32,
+        save_dir='checkpoints',
+        val_every=700,
+        tracking_enabled=False,
+        debug=False,
+    ):
     train_loader = dataset_loader.create_dataloader(data_dir="data", subset='train-clean-100', batch_size=batch_size)
     val_loader = dataset_loader.create_dataloader(data_dir="data", subset='test-clean', batch_size=batch_size)
 
     # Initialize wandb
-    wandb.init(
-        project="jarvis-social-iq-module",
-        config={
-            "learning_rate": learning_rate,
-            "epochs": num_epochs,
-            "batch_size": train_loader.batch_size,
-            "model": "Qwen2.5-7B",
-            "optimizer": "AdamW",
-            "scheduler": "CosineAnnealing"
-        }
-    )
+    if tracking_enabled:
+        wandb.init(
+            project="jarvis-social-iq-module",
+            config={
+                "learning_rate": learning_rate,
+                "epochs": num_epochs,
+                "batch_size": train_loader.batch_size,
+                "model": "Qwen2.5-7B",
+                "optimizer": "AdamW",
+                "scheduler": "CosineAnnealing"
+            }
+        )
     
     alignment_model = AudioTextAlignment(model)
     
@@ -306,6 +318,5 @@ def train_alignment(model, num_epochs=2, learning_rate=1e-5, batch_size=32, save
 if __name__ == "__main__":
     # Example usage
     model = AudioQwenModel()
-    import dataset_loader
 
-    train_alignment(model, train_loader, val_loader)
+    train_alignment(model)
