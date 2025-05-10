@@ -58,17 +58,6 @@ class MelFilterBank:
         # Current shape is [T, 80], where T is the time dimension (1037 in this example)
         mel_spec = mel_spec.transpose(0, 1)
         mel_spec = mel_spec.unsqueeze(0)
-        print(f"Mel spec shape: {mel_spec.shape}")
-
-        # Print statistics about the mel spectrogram
-        if os.environ.get("DEBUG"):
-            print(f"Pre-normalized mel spectrogram statistics:")
-            print(f"  Shape: {mel_spec.shape}")
-            print(f"  Mean: {mel_spec.mean().item():.4f}")
-            print(f"  Std: {mel_spec.std().item():.4f}")
-            print(f"  Min: {mel_spec.min().item():.4f}")
-            print(f"  Max: {mel_spec.max().item():.4f}")
-            print(f"  Non-zero elements: {torch.count_nonzero(mel_spec).item()} ({torch.count_nonzero(mel_spec).item() / mel_spec.numel() * 100:.2f}%)")
 
         mel_spec = self.normalize(mel_spec)
 

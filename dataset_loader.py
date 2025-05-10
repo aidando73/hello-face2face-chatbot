@@ -6,7 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 from datasets import load_dataset
 import wandb
 
-def load_librispeech_to_dataframe(data_dir = "data/librispeech/LibriSpeech/", subset='dev-clean'):
+def load_librispeech_to_dataframe(data_dir = "data/", subset='dev-clean'):
     """
     Load LibriSpeech data into a pandas DataFrame.
     
@@ -18,7 +18,7 @@ def load_librispeech_to_dataframe(data_dir = "data/librispeech/LibriSpeech/", su
         pd.DataFrame: DataFrame with columns ['audio_path', 'text', 'speaker_id', 'chapter_id']
     """
     data = []
-    subset_dir = os.path.join(data_dir, subset)
+    subset_dir = os.path.join(data_dir, subset, "LibriSpeech", subset)
     
     # Walk through the directory structure
     for speaker_dir in os.listdir(subset_dir):
@@ -61,7 +61,7 @@ def load_librispeech_to_dataframe(data_dir = "data/librispeech/LibriSpeech/", su
     return pd.DataFrame(data)
 
 class LibriSpeechDataset(Dataset):
-    def __init__(self, data_dir, subset='train-clean-100'):
+    def __init__(self, data_dir, subset='dev-clean'):
         self.df = load_librispeech_to_dataframe(data_dir, subset)
         
     def __len__(self):
@@ -75,7 +75,7 @@ class LibriSpeechDataset(Dataset):
             'text_target': row['text']
         }
 
-def create_dataloader(data_dir, subset='train-clean-100', batch_size=32, num_workers=4, seed=None):
+def create_dataloader(data_dir, subset='dev-clean', batch_size=32, num_workers=4, seed=None):
     dataset = LibriSpeechDataset(data_dir, subset)
     
     # Create a generator with the specified seed if provided
@@ -144,16 +144,16 @@ def evaluate_model(model, dataloader, metrics=['bleu', 'rouge', 'wer']):
 
 if __name__ == "__main__":
     # Example usage
-    data_dir = "data/librispeech/LibriSpeech"  # Path to your LibriSpeech directory
+    data_dir = "data/"  # Path to your LibriSpeech directory
     
     # Load into DataFrame
-    df = load_librispeech_to_dataframe(data_dir, subset='train-clean-100')
+    df = load_librispeech_to_dataframe(data_dir, subset='dev-clean')
     print(f"Loaded {len(df)} samples")
     print("\nSample data:")
     print(df.head())
     
     # Create dataloader
-    train_loader = create_dataloader(data_dir, subset='train-clean-100')
+    train_loader = create_dataloader(data_dir, subset='dev-clean')
     print(f"\nCreated dataloader with {len(train_loader)} batches")
     
     # Example evaluation

@@ -1,4 +1,3 @@
-download_mirror = "https://us.openslr.org/resources/12/dev-clean.tar.gz"
 
 import os
 import tarfile
@@ -51,15 +50,28 @@ def extract_tarfile(tar_path, extract_path):
     
     return extract_path
 
-# Download LibriSpeech dev-clean dataset
-data_dir = "data"
-tar_path = os.path.join(data_dir, "dev-clean.tar.gz")
-extract_path = os.path.join(data_dir, "librispeech")
+DATA_CONFIG = {
+    "dev-clean": {
+        "download_mirror": "https://us.openslr.org/resources/12/dev-clean.tar.gz",
+    },
+    "test-clean": {
+        "download_mirror": "https://us.openslr.org/resources/12/test-clean.tar.gz",
+    },
+    "train-clean-100": {
+        "download_mirror": "https://us.openslr.org/resources/12/train-clean-100.tar.gz",
+    }
+}
 
-print(f"Downloading LibriSpeech dev-clean from {download_mirror}...")
-download_file(download_mirror, tar_path)
+for dataset_name, config in DATA_CONFIG.items():
+    download_mirror = config["download_mirror"]
+    data_dir = "data"
+    tar_path = os.path.join(data_dir, f"{dataset_name}.tar.gz")
+    extract_path = os.path.join(data_dir, dataset_name)
 
-print(f"Extracting to {extract_path}...")
-extract_tarfile(tar_path, extract_path)
+    print(f"Downloading LibriSpeech {dataset_name} from {download_mirror}...")
+    download_file(download_mirror, tar_path)
 
-print("Download and extraction complete!")
+    print(f"Extracting to {extract_path}...")
+    extract_tarfile(tar_path, extract_path)
+
+    print(f"Download and extraction complete for {dataset_name}!")
