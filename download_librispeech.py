@@ -3,6 +3,7 @@ import os
 import tarfile
 import requests
 from tqdm import tqdm
+import argparse
 
 def download_file(url, save_path):
     """
@@ -59,8 +60,14 @@ DATA_CONFIG = {
     }
 }
 
-for dataset_name, config in DATA_CONFIG.items():
-    download_mirror = config["download_mirror"]
+if __name__ == "__main__":
+    # argparse for dataset_name
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset_name", type=str, required=True)
+    args = parser.parse_args()
+
+    dataset_name = args.dataset_name
+    download_mirror = DATA_CONFIG[dataset_name]["download_mirror"]
     data_dir = "data"
     tar_path = os.path.join(data_dir, f"{dataset_name}.tar.gz")
     extract_path = os.path.join(data_dir, dataset_name)
