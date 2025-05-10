@@ -11,7 +11,7 @@ def load_qwen_model():
     # Load model
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        device_map="auto",  # This will automatically handle device placement
+        # device_map="auto",  # This will automatically handle device placement
         torch_dtype=torch.float16,  # Use float16 for memory efficiency
         trust_remote_code=True
     )

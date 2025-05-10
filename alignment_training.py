@@ -2,12 +2,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from audio_qwen_integration import AudioQwenModel
+import torch.distributed as dist
 import os
 import wandb
 from datetime import datetime, timezone, timedelta
 from tqdm import tqdm
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import dataset_loader
+import torch.multiprocessing as mp
+import time
+
 class AudioTextAlignment(nn.Module):
     def __init__(self, model: AudioQwenModel):
         super().__init__()
@@ -134,20 +138,29 @@ class AudioTextAlignment(nn.Module):
         print(f"Audio encoder loaded from {os.path.join(path, 'audio_encoder.pt')}")
 
 def train_alignment(
-        model,
-        num_epochs=2,
+        num_epochs=1,
         learning_rate=1e-5,
         batch_size=8,
         save_dir='checkpoints',
-        val_every=700,
+        val_every=300,
         tracking_enabled=True,
         debug=False,
+        train_subset='train-clean-360',
+        val_subset='test-clean',
     ):
-    train_loader = dataset_loader.create_dataloader(data_dir="data", subset='train-clean-100', batch_size=batch_size)
-    val_loader = dataset_loader.create_dataloader(data_dir="data", subset='test-clean', batch_size=batch_size)
+    torch.cuda.set_device(int(os.environ.get("LOCAL_RANK")))
+    world_size = int(os.environ.get("WORLD_SIZE"))
+    dist.init_process_group(backend="nccl")
+    rank = int(dist.get_rank())
+    device_id = rank % torch.cuda.device_count()
+    torch.cuda.set_device(device_id)
+    print(f"World size: {world_size}, Rank: {rank}, Device ID: {device_id}")
+
+    train_loader = dataset_loader.create_dataloader(subset=train_subset, world_size=world_size, rank=rank, batch_size=batch_size)
+    val_loader = dataset_loader.create_dataloader(subset=val_subset, world_size=world_size, rank=rank, batch_size=batch_size)
 
     # Initialize wandb
-    if tracking_enabled:
+    if tracking_enabled and rank == 0:
         wandb.init(
             project="jarvis-social-iq-module",
             config={
@@ -160,27 +173,37 @@ def train_alignment(
                 "optimizer": "SGD"
             }
         )
+
+    # Load model in a synchronized way to avoid concurrent downloads
+    if rank == 0:
+        # Rank 0 loads the model first
+        print(f"[Rank {rank}] Loading model...")
+        model = AudioQwenModel().to(device_id)
+        print(f"[Rank {rank}] Model loaded successfully")
+    
+    # Barrier to ensure rank 0 has finished loading the model
+    dist.barrier()
+    
+    # Other ranks load after rank 0 is done
+    if rank != 0:
+        print(f"[Rank {rank}] Loading model...")
+        model = AudioQwenModel().to(device_id)
+        print(f"[Rank {rank}] Model loaded successfully")
+    
+    # Ensure all processes have loaded the model before proceeding
+    dist.barrier()
     
     alignment_model = AudioTextAlignment(model)
-    
+    alignment_model = alignment_model.to(device_id)
     # Freeze Qwen model parameters
     for param in alignment_model.model.model.parameters():
         param.requires_grad = False
+    
+    alignment_model = torch.nn.parallel.DistributedDataParallel(alignment_model, device_ids=[device_id], output_device=device_id)
 
-    # Only optimize the audio encoder
-    # optimizer = torch.optim.AdamW([
-    #     {'params': alignment_model.model.audio_encoder.connector[0].parameters()}
-    # ], lr=learning_rate)
-    optimizer = torch.optim.SGD([
-        {'params': alignment_model.model.audio_encoder.parameters()},
-    ], lr=learning_rate, momentum=0.99)
-
-    # # Add cosine annealing scheduler
-    # scheduler = CosineAnnealingLR(
-    #     optimizer, 
-    #     T_max=num_epochs,
-    #     eta_min=learning_rate / 10
-    # )
+    optimizer = torch.optim.AdamW([
+        {'params': alignment_model.module.model.audio_encoder.parameters()},
+    ], lr=learning_rate, eps=1e-4)
 
     timestamp = datetime.now().astimezone(timezone(timedelta(hours=11))).strftime('%Y%m%d_%H%M')
     save_dir = f"checkpoints/{timestamp}"
@@ -205,13 +228,13 @@ def train_alignment(
 
             # Calculate gradient norm
             pre_clipped_grad_norm = 0.0
-            for p in alignment_model.model.audio_encoder.parameters():
+            for p in alignment_model.module.model.audio_encoder.parameters():
                 if p.grad is not None:
                     pre_clipped_grad_norm += p.grad.data.norm(2).item() ** 2
             pre_clipped_grad_norm = pre_clipped_grad_norm ** 0.5
             
             post_clipped_grad_norm = 0.0
-            for p in alignment_model.model.audio_encoder.parameters():
+            for p in alignment_model.module.model.audio_encoder.parameters():
                 if p.grad is not None:
                     post_clipped_grad_norm += p.grad.data.norm(2).item() ** 2
             post_clipped_grad_norm = post_clipped_grad_norm ** 0.5
@@ -230,7 +253,7 @@ def train_alignment(
             optimizer.zero_grad()
 
             val_loss = None
-            if global_step % val_every == 0:
+            if global_step % val_every == 0 or global_step == len(train_loader) - 1:
                 val_loss = 0
                 alignment_model.eval()
                 for batch_idx, batch in tqdm(enumerate(val_loader), desc=f"Validation Batches", total=len(val_loader)):
@@ -238,10 +261,12 @@ def train_alignment(
                     text_targets = batch['text_targets']
                     the_loss = alignment_model(audio_paths, text_targets)
                     val_loss += the_loss.item() * len(batch['audio_paths'])
-                val_loss = val_loss / len(val_loader.dataset)
+                val_loss_tensor = torch.tensor([val_loss], device=f'cuda:{device_id}')
+                dist.all_reduce(val_loss_tensor)
+                val_loss = val_loss_tensor.item() / len(val_loader.dataset)
 
             # Log batch metrics
-            if tracking_enabled:
+            if tracking_enabled and rank == 0:
                 wandb.log({
                     "loss/batch_train": train_loss,
                     "loss/val": val_loss,
@@ -249,9 +274,6 @@ def train_alignment(
                     "grad_norm/post_clip": post_clipped_grad_norm,
                     "epoch": epoch,
                     "batch": train_batch_idx,
-                    # "learning_rate": scheduler.get_last_lr()[0]
-                    # For compatibility with old logging
-                    "batch_loss": train_loss,
                 })
 
             print("--------------------------------")
@@ -260,31 +282,22 @@ def train_alignment(
 
         # Calculate and log epoch metrics
         epoch_loss = total_loss / num_batches
-        if tracking_enabled:
+        if tracking_enabled and rank == 0:
             wandb.log({
                 "loss/epoch_train": epoch_loss,
                 "epoch": epoch,
-                # "learning_rate": scheduler.get_last_lr()[0]
-                # For compatibility with old logging
-                "epoch_loss": epoch_loss,
             })
         
-        # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}, LR: {scheduler.get_last_lr()[0]:.8f}")
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}")
         
-        # Step the scheduler at the end of each epoch
-        # scheduler.step()
-        
-        # Save checkpoint every epoch
-        alignment_model.save(os.path.join(save_dir, f'epoch_{epoch+1}'))
+        if rank == 0:
+            alignment_model.module.save(os.path.join(save_dir, f'epoch_{epoch+1}'))
     
-    if tracking_enabled:
+    if tracking_enabled and rank == 0:
         wandb.finish()
+    
+    dist.destroy_process_group()
     return alignment_model
 
 if __name__ == "__main__":
-    
-    # Example usage
-    model = AudioQwenModel()
-
-    train_alignment(model)
+    train_alignment()
